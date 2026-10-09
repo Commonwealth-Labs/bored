@@ -69,7 +69,7 @@ func Where(ix *model.Index, t *model.Ticket) string {
 	if root != nil && root.ID != t.ID {
 		s = root.Ref()
 	}
-	if t.Repo != "" {
+	if t.Repo != "" && t.Repo != s {
 		if s != "" {
 			s += "›"
 		}
