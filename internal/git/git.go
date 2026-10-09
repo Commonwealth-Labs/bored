@@ -136,3 +136,33 @@ func Exists(p string) bool {
 	_, err := os.Stat(p)
 	return err == nil
 }
+
+// BranchExists reports whether a local branch exists in dir.
+func BranchExists(dir, branch string) bool {
+	_, err := run(dir, "rev-parse", "--verify", "--quiet", "refs/heads/"+branch)
+	return err == nil
+}
+
+// WorktreeAdd creates a linked worktree at path for branch, creating the
+// branch from base when it does not exist yet.
+func WorktreeAdd(repo, path, branch, base string) error {
+	if BranchExists(repo, branch) {
+		_, err := run(repo, "worktree", "add", path, branch)
+		return err
+	}
+	args := []string{"worktree", "add", "-b", branch, path}
+	if base != "" && BranchExists(repo, base) {
+		args = append(args, base)
+	}
+	_, err := run(repo, args...)
+	return err
+}
+
+// CurrentBranch returns the checked-out branch name in dir.
+func CurrentBranch(dir string) string {
+	out, err := run(dir, "rev-parse", "--abbrev-ref", "HEAD")
+	if err != nil {
+		return ""
+	}
+	return out
+}

@@ -187,7 +187,6 @@ func TestTransitions(t *testing.T) {
 	}
 }
 
-
 func TestDerivedStatus(t *testing.T) {
 	ix := fixture()
 	// T-2 has children todo, todo, done: started -> doing. T-1 follows T-2 -> doing.

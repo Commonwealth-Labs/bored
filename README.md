@@ -178,3 +178,47 @@ In the tree, `n` creates a child of the selected ticket; on the board it
 creates a sibling. The board reloads itself every three seconds if any
 ticket file changed, so agents moving cards while you watch show up.
 Colours adapt to light and dark terminals.
+
+## Headless runs: `bored run`
+
+`bored run` hands ready tickets to headless Claude Code sessions, one at a
+time, and stops when nothing is ready. Each ticket gets
+
+```
+claude -p "/bored-work <id>" --output-format json --permission-mode acceptEdits --max-turns 60
+```
+
+run in the right place: a per-ticket git worktree at
+`<store>/worktrees/<repo>/<id>` on branch `<id>` for tickets that name a
+repo (so your checkout is never touched and runs can't collide), or the
+current directory for thinking work. Afterwards the ticket is reloaded. In
+review means the agent handed over. Still in doing means the session ended
+mid-way, so the runner releases it back to todo with a log line saying so.
+Every session's output lands under `<store>/runs/<timestamp>-<id>-work/`
+(`stdout.json`, `stderr.log`, `meta.json`), ignored by the store's git.
+
+```
+bored run                         # one ticket, then stop
+bored run --max 0 --budget-usd 3  # until nothing is ready; cap each session at $3
+bored run --under iam --review    # only that initiative; add a review pass per ticket
+bored run --dry-run               # show the pick and where it would run
+bored run --no-worktree           # run in the repo path itself
+```
+
+`--review` spawns a second session (`/bored-review <id>`, told to recommend
+only) and appends its verdict to the ticket's log, so `bored show` and the
+TUI carry the opinion next to the work. Marking done stays with you.
+
+The loop stops after two consecutive failures so a broken setup can't burn
+budget. Exit codes: 5 when nothing was ready, 1 when it stopped on failures.
+
+**Permission mode.** `acceptEdits` is the default: file edits are allowed,
+and Bash commands are allowed only where the skill's `allowed-tools` lists
+them (`bored`, `git`, `go`, `npm`, `make`). Anything else is denied rather
+than prompted, so a session can stall but can't do something unexpected.
+Pass `--permission-mode bypassPermissions` if you decide you want the agent
+unconstrained.
+
+Measured on 2026-10-09: a thinking ticket took 15 turns and about $1.25; a
+small code ticket in a worktree took 15 turns and about $1.00, plus roughly
+$1.00 for the review pass.

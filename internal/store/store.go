@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/Commonwealth-Labs/bored/internal/git"
 	"github.com/Commonwealth-Labs/bored/internal/model"
@@ -120,4 +121,29 @@ func (s *Store) HasUncommitted() bool {
 	}
 	ok, _ := git.HasChanges(s.Root)
 	return ok
+}
+
+// EnsureIgnored appends patterns to the store's .gitignore if missing.
+func (s *Store) EnsureIgnored(patterns ...string) error {
+	p := filepath.Join(s.Root, ".gitignore")
+	b, _ := os.ReadFile(p)
+	have := map[string]bool{}
+	for _, l := range strings.Split(string(b), "\n") {
+		have[strings.TrimSpace(l)] = true
+	}
+	out := string(b)
+	if out != "" && !strings.HasSuffix(out, "\n") {
+		out += "\n"
+	}
+	changed := false
+	for _, pat := range patterns {
+		if !have[pat] {
+			out += pat + "\n"
+			changed = true
+		}
+	}
+	if !changed {
+		return nil
+	}
+	return os.WriteFile(p, []byte(out), 0o644)
 }
