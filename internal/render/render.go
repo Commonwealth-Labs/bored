@@ -31,6 +31,7 @@ func Markdown(md string, width int) string {
 // MarkdownWith renders md with an already-known dark/light answer and never
 // touches the terminal.
 func MarkdownWith(md string, width int, dark bool) string {
+	md = EscapeAngles(md)
 	opts := []glamour.TermRendererOption{glamour.WithWordWrap(width)}
 	if os.Getenv("GLAMOUR_STYLE") != "" {
 		opts = append(opts, glamour.WithEnvironmentConfig())
@@ -317,4 +318,39 @@ func Header(ix *model.Index, t *model.Ticket) string {
 
 func derivedNote(stored model.Status) string {
 	return fmt.Sprintf(" (derived from children; stored %s)", stored)
+}
+
+// EscapeAngles backslash-escapes "<" outside code spans and fenced blocks so
+// placeholders like <actor> render as text instead of being dropped as HTML.
+func EscapeAngles(md string) string {
+	var out strings.Builder
+	inFence := false
+	for i, line := range strings.Split(md, "\n") {
+		if i > 0 {
+			out.WriteByte('\n')
+		}
+		trim := strings.TrimSpace(line)
+		if strings.HasPrefix(trim, "```") || strings.HasPrefix(trim, "~~~") {
+			inFence = !inFence
+			out.WriteString(line)
+			continue
+		}
+		if inFence {
+			out.WriteString(line)
+			continue
+		}
+		inCode := false
+		prevBackslash := false
+		for _, r := range line {
+			switch {
+			case r == '`':
+				inCode = !inCode
+			case r == '<' && !inCode && !prevBackslash:
+				out.WriteByte('\\')
+			}
+			out.WriteRune(r)
+			prevBackslash = r == '\\'
+		}
+	}
+	return out.String()
 }
