@@ -22,8 +22,16 @@ func (a *App) rebuildColumns() {
 			}
 		}
 	}
+	// Stay in the current column. If the previously selected ticket is still
+	// here, keep it under the cursor; if it left (claimed, moved, done), the
+	// row index now points at the card that was below it, clamped to the end.
 	if a.view == viewBoard && prev != nil {
-		a.syncBoardCursorTo(prev)
+		for ri, t := range a.cols[a.col] {
+			if t.ID == prev.ID {
+				a.row = ri
+				break
+			}
+		}
 	}
 	a.clampBoard()
 }

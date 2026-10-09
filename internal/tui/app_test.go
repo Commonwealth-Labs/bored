@@ -191,14 +191,22 @@ func TestClaimMoveAndDoneViaKeys(t *testing.T) {
 	if tk.Status != model.StatusDoing || tk.Assignee != "tester" {
 		t.Fatalf("claim failed: %+v status=%s", a.status, tk.Status)
 	}
-	// cursor should have followed T-3 into the doing column
-	if a.current() == nil || a.current().ID != "T-3" {
-		t.Fatalf("cursor did not follow claimed ticket: col=%d row=%d", a.col, a.row)
+	// cursor stays in the todo column, now on the card that was below T-3
+	if a.col != 1 || a.current() == nil || a.current().ID != "T-4" {
+		t.Fatalf("cursor should stay in todo on T-4: col=%d row=%d cur=%v", a.col, a.row, a.current())
+	}
+	drive(t, a, key("l")) // doing column: T-3
+	if a.current().ID != "T-3" {
+		t.Fatalf("expected T-3 in doing, got %v", a.current())
 	}
 	drive(t, a, key("]")) // doing -> review
 	if a.ix.Get("T-3").Status != model.StatusReview {
 		t.Fatalf("move right failed: %s", a.status)
 	}
+	if a.col != 2 {
+		t.Fatalf("cursor should stay in the doing column, got col=%d", a.col)
+	}
+	drive(t, a, key("l")) // review column: T-3
 	drive(t, a, key("]")) // review -> done asks
 	if a.mode != modeConfirm {
 		t.Fatal("moving to done should ask for confirmation")
@@ -211,6 +219,9 @@ func TestClaimMoveAndDoneViaKeys(t *testing.T) {
 	drive(t, a, key("y"))
 	if a.ix.Get("T-3").Status != model.StatusDone {
 		t.Fatalf("done failed: %s", a.status)
+	}
+	if a.col != 3 {
+		t.Fatalf("cursor should stay in the review column after done, got col=%d", a.col)
 	}
 	// log prompt
 	drive(t, a, key("l")) // move to... whichever; pick T-4 explicitly
@@ -321,8 +332,10 @@ func TestPollReloadsWhenFilesChange(t *testing.T) {
 func TestConfirmDialogIsVisible(t *testing.T) {
 	a := newTestApp(t, 120, 30)
 	drive(t, a, key("l"))
-	drive(t, a, key("c"))
-	drive(t, a, key("]")) // doing -> review
+	drive(t, a, key("c")) // T-3 -> doing; cursor stays in todo
+	drive(t, a, key("l")) // doing: T-3
+	drive(t, a, key("]")) // -> review; cursor stays in doing
+	drive(t, a, key("l")) // review: T-3
 	drive(t, a, key("d"))
 	if a.mode != modeConfirm {
 		t.Fatal("d from review should ask")
@@ -341,7 +354,9 @@ func TestConfirmFromDetailKeepsDetailVisible(t *testing.T) {
 	a := newTestApp(t, 120, 30)
 	drive(t, a, key("l"))
 	drive(t, a, key("c"))
+	drive(t, a, key("l"))
 	drive(t, a, key("]"))
+	drive(t, a, key("l"))
 	drive(t, a, key("enter"))
 	if a.mode != modeDetail {
 		t.Fatal("expected detail")
