@@ -30,7 +30,7 @@ func TestRenderParseRoundTrip(t *testing.T) {
 		Parent: "TST-10", Slug: "oauth", Repo: "h1v3", Priority: 2,
 		DependsOn: []string{"TST-11"}, Labels: []string{"auth", "backend"},
 		Assignee: "claude", Created: now, Updated: now, ClaimedAt: &claimed, Branch: "feat/oauth",
-		Body: NewBody("Why and what.", []string{"Login works", "Cookie set"}),
+		Body: model.NewBody("Why and what.", []string{"Login works", "Cookie set"}),
 	}
 	data, err := RenderTicket(in)
 	if err != nil {
@@ -79,47 +79,47 @@ func TestParseMinimal(t *testing.T) {
 }
 
 func TestBodyOps(t *testing.T) {
-	body := NewBody("desc", []string{"a", "b"})
+	body := model.NewBody("desc", []string{"a", "b"})
 	ts := time.Date(2026, 10, 9, 12, 0, 0, 0, time.UTC)
-	body = AppendLog(body, ts, "claude", "claimed")
-	body = AppendLog(body, ts.Add(time.Minute), "claude", "did a thing")
+	body = model.AppendLog(body, ts, "claude", "claimed")
+	body = model.AppendLog(body, ts.Add(time.Minute), "claude", "did a thing")
 	if !strings.HasSuffix(body, "## Log\n- 2026-10-09 12:00 claude: claimed\n- 2026-10-09 12:01 claude: did a thing\n") {
 		t.Errorf("log append wrong:\n%s", body)
 	}
-	done, total := CountAC(body)
+	done, total := model.CountAC(body)
 	if done != 0 || total != 2 {
 		t.Errorf("ac count %d/%d", done, total)
 	}
-	body, err := SetAC(body, 2, true)
+	body, err := model.SetAC(body, 2, true)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if d, _ := CountAC(body); d != 1 {
+	if d, _ := model.CountAC(body); d != 1 {
 		t.Errorf("expected 1 done after check:\n%s", body)
 	}
-	if _, err := SetAC(body, 3, true); err == nil {
+	if _, err := model.SetAC(body, 3, true); err == nil {
 		t.Error("expected error for missing criterion")
 	}
-	body = AddAC(body, "c")
-	if _, total := CountAC(body); total != 3 {
+	body = model.AddAC(body, "c")
+	if _, total := model.CountAC(body); total != 3 {
 		t.Errorf("expected 3 after add:\n%s", body)
 	}
-	if got := ListAC(body)[2].Text; got != "c" {
+	if got := model.ListAC(body)[2].Text; got != "c" {
 		t.Errorf("third ac = %q", got)
 	}
-	if Section(body, SecDescription) != "desc" {
-		t.Errorf("description section = %q", Section(body, SecDescription))
+	if model.Section(body, model.SecDescription) != "desc" {
+		t.Errorf("description section = %q", model.Section(body, model.SecDescription))
 	}
-	body = SetSection(body, SecPlan, "step 1\nstep 2")
-	if Section(body, SecPlan) != "step 1\nstep 2" {
-		t.Errorf("plan section = %q\n%s", Section(body, SecPlan), body)
+	body = model.SetSection(body, model.SecPlan, "step 1\nstep 2")
+	if model.Section(body, model.SecPlan) != "step 1\nstep 2" {
+		t.Errorf("plan section = %q\n%s", model.Section(body, model.SecPlan), body)
 	}
 	// Log must survive plan edit.
-	if d, _ := CountAC(body); d != 1 || !strings.Contains(body, "claude: claimed") {
+	if d, _ := model.CountAC(body); d != 1 || !strings.Contains(body, "claude: claimed") {
 		t.Errorf("earlier edits lost:\n%s", body)
 	}
 	// Log on a body without the section.
-	b2 := AppendLog("just text\n", ts, "x", "y")
+	b2 := model.AppendLog("just text\n", ts, "x", "y")
 	if b2 != "just text\n\n## Log\n- 2026-10-09 12:00 x: y\n" {
 		t.Errorf("log on bare body:\n%q", b2)
 	}
@@ -163,7 +163,7 @@ func TestMutateCreatesSavesCommits(t *testing.T) {
 	s := newTestStore(t)
 	before := git.CommitCount(s.Root)
 	err := s.Mutate("bored: new", func(tx *Tx) error {
-		return tx.Create(&model.Ticket{Title: "First", Slug: "first", Body: NewBody("", nil)})
+		return tx.Create(&model.Ticket{Title: "First", Slug: "first", Body: model.NewBody("", nil)})
 	})
 	if err != nil {
 		t.Fatal(err)

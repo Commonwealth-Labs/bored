@@ -1,6 +1,7 @@
 package model
 
 import (
+	"strings"
 	"testing"
 	"time"
 )
@@ -163,11 +164,14 @@ func TestTransitions(t *testing.T) {
 	if err := ix.CanClaim(ix.Get("T-7"), "andrew", false); err != nil {
 		t.Errorf("owner claim should pass: %v", err)
 	}
-	if err := ix.CanMove(ix.Get("T-2"), StatusDone, false); err == nil {
+	if err := ix.CanMove(ix.Get("T-2"), StatusDone); err == nil {
 		t.Error("done with open children should fail")
 	}
-	if err := ix.CanMove(ix.Get("T-2"), StatusDone, true); err != nil {
-		t.Error("forced done should pass")
+	if err := ix.CanMove(ix.Get("T-2"), StatusBacklog); err == nil {
+		t.Error("any move on a container with open children should fail")
+	}
+	if err := ix.CanMove(ix.Get("T-4"), StatusReview); err != nil {
+		t.Errorf("leaf move should pass: %v", err)
 	}
 	if err := ix.CanDone(ix.Get("T-4"), false); err == nil {
 		t.Error("done from todo without force should fail")
@@ -180,5 +184,81 @@ func TestTransitions(t *testing.T) {
 	ApplyMove(tk, StatusTodo)
 	if tk.Assignee != "" || tk.ClaimedAt != nil {
 		t.Error("move to todo should clear claim")
+	}
+}
+
+
+func TestDerivedStatus(t *testing.T) {
+	ix := fixture()
+	// T-2 has children todo, todo, done: started -> doing. T-1 follows T-2 -> doing.
+	if got := ix.Status("T-2"); got != StatusDoing {
+		t.Errorf("T-2 effective = %s, want doing", got)
+	}
+	if got := ix.Status("T-1"); got != StatusDoing {
+		t.Errorf("T-1 effective = %s, want doing", got)
+	}
+	// Leaves report their stored status.
+	if got := ix.Status("T-4"); got != StatusTodo {
+		t.Errorf("T-4 effective = %s", got)
+	}
+	// A container whose children are all backlog is backlog; once one is todo it's todo.
+	ts := []*Ticket{mk("R-1", "", StatusDoing, 3), mk("R-2", "R-1", StatusBacklog, 3), mk("R-3", "R-1", StatusBacklog, 3)}
+	ix2 := NewIndex("R", ts)
+	if got := ix2.Status("R-1"); got != StatusBacklog {
+		t.Errorf("all-backlog children: %s, want backlog (stored doing ignored)", got)
+	}
+	ts[1].Status = StatusTodo
+	if got := ix2.Status("R-1"); got != StatusTodo {
+		t.Errorf("one ready child: %s, want todo", got)
+	}
+	ts[1].Status = StatusDone
+	ts[2].Status = StatusDone
+	if got := ix2.Status("R-1"); got != StatusDoing {
+		t.Errorf("all children done: stored status (%s) should show through, got %s", ts[0].Status, got)
+	}
+	// Filter and Ready use the effective status.
+	if got := ids(ix.Filter(Scope{Status: StatusDoing})); got != "T-1 T-2 " {
+		t.Errorf("filter doing = %q", got)
+	}
+}
+
+func TestCascadeDone(t *testing.T) {
+	now := time.Date(2026, 10, 9, 15, 0, 0, 0, time.UTC)
+	// grouping chain: G-1 (no AC) > G-2 (no AC) > G-3 leaf, plus W-4 under G-1 with its own AC
+	ts := []*Ticket{
+		mk("G-1", "", StatusBacklog, 3), mk("G-2", "G-1", StatusBacklog, 3), mk("G-3", "G-2", StatusReview, 2),
+		mk("G-4", "G-1", StatusBacklog, 3), mk("G-5", "G-4", StatusReview, 2),
+	}
+	ts[3].Body = NewBody("integrate", []string{"integration verified"})
+	ix := NewIndex("G", ts)
+	// Finish G-3: G-2 has no AC -> auto done; G-1 still has G-4 open -> stops.
+	ApplyMove(ix.Get("G-3"), StatusDone)
+	changed := CascadeDone(ix, ix.Get("G-3"), "tester", now)
+	if len(changed) != 1 || changed[0].ID != "G-2" || ix.Get("G-2").Status != StatusDone {
+		t.Fatalf("expected G-2 auto-done, changed=%v", ids(changed))
+	}
+	if ix.Get("G-1").Status != StatusBacklog {
+		t.Error("G-1 should be untouched while G-4 is open")
+	}
+	if !strings.Contains(ix.Get("G-2").Body, "all children done") {
+		t.Error("log line missing on G-2")
+	}
+	// Finish G-5: G-4 has AC -> becomes todo, not done; G-1 therefore still open.
+	ApplyMove(ix.Get("G-5"), StatusDone)
+	changed = CascadeDone(ix, ix.Get("G-5"), "tester", now)
+	if len(changed) != 1 || changed[0].ID != "G-4" || ix.Get("G-4").Status != StatusTodo {
+		t.Fatalf("expected G-4 -> todo, changed=%v status=%s", ids(changed), ix.Get("G-4").Status)
+	}
+	if ix.Status("G-1") != StatusDoing {
+		t.Errorf("G-1 effective should be doing (G-2 done, G-4 ready), got %s", ix.Status("G-1"))
+	}
+	// Now G-4 is a workable todo with its own AC; finishing it closes G-1.
+	if !ix.Workable("G-4") {
+		t.Fatal("G-4 should be workable")
+	}
+	ApplyMove(ix.Get("G-4"), StatusDone)
+	changed = CascadeDone(ix, ix.Get("G-4"), "tester", now)
+	if len(changed) != 1 || changed[0].ID != "G-1" || ix.Get("G-1").Status != StatusDone {
+		t.Fatalf("expected G-1 auto-done, changed=%v", ids(changed))
 	}
 }

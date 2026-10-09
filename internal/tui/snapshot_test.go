@@ -16,7 +16,7 @@ func TestConfirmOverlayKeepsSurroundingCards(t *testing.T) {
 	a := newTestApp(t, 140, 30)
 	for i := 0; i < 20; i++ {
 		err := a.store.Mutate("", func(tx *store.Tx) error {
-			return tx.Create(&model.Ticket{Title: fmt.Sprintf("Filler %d", i), Priority: 3, Status: model.StatusTodo, Body: store.NewBody("", []string{"x"})})
+			return tx.Create(&model.Ticket{Title: fmt.Sprintf("Filler %d", i), Priority: 3, Status: model.StatusTodo, Body: model.NewBody("", []string{"x"})})
 		})
 		if err != nil {
 			t.Fatal(err)

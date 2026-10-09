@@ -131,7 +131,7 @@ func (a *App) renderTree() string {
 		if t.Slug != "" {
 			line += style(a.st.dim, " ("+t.Slug+")")
 		}
-		line += fmt.Sprintf("  %-7s ", t.Status) + style(a.st.dim, fmt.Sprintf("P%d", t.Priority))
+		line += fmt.Sprintf("  %-7s ", a.ix.Status(t.ID)) + style(a.st.dim, fmt.Sprintf("P%d", t.Priority))
 		if t.Repo != "" {
 			line += style(a.st.dim, "  "+t.Repo)
 		}

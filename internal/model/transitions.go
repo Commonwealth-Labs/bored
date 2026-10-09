@@ -36,18 +36,18 @@ func Claim(t *Ticket, actor string, now time.Time) {
 	t.ClaimedAt = &ts
 }
 
-// CanMove checks a move to any status. Only one structural rule exists:
-// nothing with open children may be done.
-func (ix *Index) CanMove(t *Ticket, to Status, force bool) error {
+// CanMove checks a move to any status. A container with open children has a
+// derived status and cannot be moved by hand.
+func (ix *Index) CanMove(t *Ticket, to Status) error {
 	if to.Index() < 0 {
 		return fmt.Errorf("%w: unknown status %q", ErrUsage, to)
 	}
+	if ix.HasOpenChildren(t.ID) {
+		done, total := ix.Progress(t.ID)
+		return fmt.Errorf("%w: %s has open children (%d/%d done); its status follows them", ErrConflict, t.ID, done, total)
+	}
 	if t.Status == to {
 		return fmt.Errorf("%w: %s is already %s", ErrConflict, t.ID, to)
-	}
-	if to == StatusDone && !force && ix.HasOpenChildren(t.ID) {
-		done, total := ix.Progress(t.ID)
-		return fmt.Errorf("%w: %s has open children (%d/%d done); finish them or use --force", ErrConflict, t.ID, done, total)
 	}
 	return nil
 }
@@ -70,5 +70,34 @@ func (ix *Index) CanDone(t *Ticket, force bool) error {
 	if t.Status != StatusReview && !force {
 		return fmt.Errorf("%w: %s is %s, not review; use --force to skip review", ErrConflict, t.ID, t.Status)
 	}
-	return ix.CanMove(t, StatusDone, force)
+	return ix.CanMove(t, StatusDone)
+}
+
+// CascadeDone runs after t was marked done. Walking up the parents: a parent
+// whose children are now all done is closed automatically if it has no
+// acceptance criteria of its own (it was only a grouping), or becomes a todo
+// ticket if it has (its own work is now unblocked). Returns the parents it
+// changed, each with a log line appended.
+func CascadeDone(ix *Index, t *Ticket, actor string, now time.Time) []*Ticket {
+	var changed []*Ticket
+	for p := ix.Get(t.Parent); p != nil; p = ix.Get(p.Parent) {
+		if ix.HasOpenChildren(p.ID) {
+			break
+		}
+		if HasOwnWork(p) {
+			if p.Status == StatusBacklog || p.Status == StatusDoing || p.Status == StatusReview {
+				ApplyMove(p, StatusTodo)
+				p.Body = AppendLog(p.Body, now.Local(), actor, "all children done; ready for its own work")
+				changed = append(changed, p)
+			}
+			break
+		}
+		if p.Status == StatusDone {
+			break
+		}
+		ApplyMove(p, StatusDone)
+		p.Body = AppendLog(p.Body, now.Local(), actor, "-> done: all children done")
+		changed = append(changed, p)
+	}
+	return changed
 }

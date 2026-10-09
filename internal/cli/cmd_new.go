@@ -87,7 +87,7 @@ when any --ac is given. --repo defaults to the parent's repo.`,
 					}
 					t.Body = string(b)
 				} else {
-					t.Body = store.NewBody(description, ac)
+					t.Body = model.NewBody(description, ac)
 				}
 				if err := tx.Create(t); err != nil {
 					return err
@@ -206,11 +206,11 @@ func newSetCmd() *cobra.Command {
 					changed = append(changed, "branch")
 				}
 				if cmd.Flags().Changed("description") {
-					t.Body = store.SetSection(t.Body, store.SecDescription, description)
+					t.Body = model.SetSection(t.Body, model.SecDescription, description)
 					changed = append(changed, "description")
 				}
 				if cmd.Flags().Changed("plan") {
-					t.Body = store.SetSection(t.Body, store.SecPlan, plan)
+					t.Body = model.SetSection(t.Body, model.SecPlan, plan)
 					changed = append(changed, "plan")
 				}
 				if len(changed) == 0 {

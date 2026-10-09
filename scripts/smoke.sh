@@ -58,14 +58,29 @@ expect_exit 2 "set nothing" "$BIN" set 5
 expect_exit 4 "reparent cycle" "$BIN" set iam --parent 5
 ( cd "$REPO" && [ "$(b next --as claude --repo demo --json | jq -r .ticket.id)" = "BRD-4" ] ) && pass "next --repo" || bad "next --repo"
 
-# Finish the chunk: container becomes workable, then done.
-b claim 4 --as claude >/dev/null && b move 4 review >/dev/null && b done 4 >/dev/null
-b move 5 todo >/dev/null && b claim 5 --as claude >/dev/null && b move 5 review >/dev/null && b done 5 >/dev/null
-b board --under iam | grep -q "BRD-2" && pass "container workable after children done" || bad "container reappears"
+# Derived status: the chunk has a done child and open ones -> doing; root follows.
+[ "$(b show 2 --json | jq -r .status)" = "doing" ] && pass "container status derived (doing)" || bad "derived status: $(b show 2 --json | jq -r .status)"
+[ "$(b show iam --json | jq -r .status)" = "doing" ] && pass "root status derived (doing)" || bad "root derived status"
+expect_exit 4 "move container with open children" "$BIN" move 2 backlog
 expect_exit 4 "move root to done with open children" "$BIN" move iam done
-b move 2 todo >/dev/null && b claim 2 >/dev/null && b move 2 review >/dev/null
-expect_exit 0 "done container" "$BIN" done 2
-expect_exit 5 "next with nothing ready" "$BIN" next --under iam --as nobody
+# Finish the chunk's children: the chunk has no AC of its own, so it auto-closes; so does the root.
+b claim 4 --as claude >/dev/null && b move 4 review >/dev/null && b done 4 >/dev/null
+b move 5 todo >/dev/null && b claim 5 --as claude >/dev/null && b move 5 review >/dev/null
+expect_exit 0 "done last child" "$BIN" done 5
+[ "$(b show 2 --json | jq -r .status)" = "done" ] && pass "grouping container auto-done" || bad "container auto-done: $(b show 2 --json | jq -r .status)"
+[ "$(b show iam --json | jq -r .status)" = "done" ] && pass "root auto-done" || bad "root auto-done: $(b show iam --json | jq -r .status)"
+b show 2 --plain | grep -q "all children done" && pass "cascade logged" || bad "cascade log line"
+# A container with its own AC becomes todo instead of done. Ids are captured,
+# not assumed: failed creates do not consume ids.
+C=$(b new "Chunk with own work" --parent iam --status todo --ac "integration verified")
+K=$(b new "Kid" --parent "$C" --ac "x")
+[ "$(b show "$C" --json | jq -r .status)" = "todo" ] && pass "container with ready child shows todo" || bad "container derived todo: $(b show "$C" --json | jq -r .status)"
+b claim "$K" --as claude >/dev/null && b move "$K" review >/dev/null && b done "$K" >/dev/null
+[ "$(b show "$C" --json | jq -r .status)" = "todo" ] && [ "$(b show "$C" --json | jq -r .workable)" = "true" ] && pass "container with own AC becomes workable todo" || bad "own-work container"
+b board | grep -q "$C" && pass "workable container shows on board" || bad "workable container on board"
+b claim "$C" >/dev/null && b move "$C" review >/dev/null && expect_exit 0 "done container with own work" "$BIN" done "$C"
+[ "$(b show iam --json | jq -r .status)" = "done" ] && pass "root auto-done again after own-work chunk" || bad "root after own-work chunk: $(b show iam --json | jq -r .status)"
+expect_exit 5 "next with nothing ready" "$BIN" next --under 2 --as nobody
 expect_exit 3 "show unknown" "$BIN" show 99
 expect_exit 2 "bad status" "$BIN" move 1 nowhere
 expect_exit 2 "unknown flag" "$BIN" list --bogus

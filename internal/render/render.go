@@ -12,7 +12,6 @@ import (
 	"charm.land/glamour/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/Commonwealth-Labs/bored/internal/model"
-	"github.com/Commonwealth-Labs/bored/internal/store"
 )
 
 // IsTTY reports whether f is a terminal.
@@ -55,7 +54,7 @@ func MarkdownWith(md string, width int, dark bool) string {
 // children progress.
 func Badges(ix *model.Index, t *model.Ticket) []string {
 	var b []string
-	if d, n := store.CountAC(t.Body); n > 0 {
+	if d, n := model.CountAC(t.Body); n > 0 {
 		b = append(b, fmt.Sprintf("ac %d/%d", d, n))
 	}
 	if d, n := ix.Progress(t.ID); n > 0 {
@@ -120,10 +119,11 @@ func Columns(ix *model.Index, sc model.Scope, o BoardOpts) map[model.Status][]*m
 		if !o.AllLevels && ix.HasOpenChildren(t.ID) {
 			continue
 		}
-		if t.Status == model.StatusDone && o.DoneWindow > 0 && o.Now.Sub(t.Updated) > o.DoneWindow {
+		st := ix.Status(t.ID)
+		if st == model.StatusDone && o.DoneWindow > 0 && o.Now.Sub(t.Updated) > o.DoneWindow {
 			continue
 		}
-		cols[t.Status] = append(cols[t.Status], t)
+		cols[st] = append(cols[st], t)
 	}
 	for st, ts := range cols {
 		sort.SliceStable(ts, func(i, j int) bool {
@@ -173,7 +173,7 @@ func writeNode(sb *strings.Builder, ix *model.Index, t *model.Ticket, prefix, br
 	if t.Slug != "" {
 		line += " (" + t.Slug + ")"
 	}
-	line += fmt.Sprintf("  %-7s P%d", t.Status, t.Priority)
+	line += fmt.Sprintf("  %-7s P%d", ix.Status(t.ID), t.Priority)
 	if t.Repo != "" {
 		line += "  " + t.Repo
 	}
@@ -201,10 +201,10 @@ func writeNode(sb *strings.Builder, ix *model.Index, t *model.Ticket, prefix, br
 		} else {
 			pad += "    "
 		}
-		if desc := firstParagraph(store.Section(t.Body, store.SecDescription)); desc != "" {
+		if desc := firstParagraph(model.Section(t.Body, model.SecDescription)); desc != "" {
 			sb.WriteString(pad + "  " + desc + "\n")
 		}
-		if d, n := store.CountAC(t.Body); n > 0 {
+		if d, n := model.CountAC(t.Body); n > 0 {
 			sb.WriteString(fmt.Sprintf("%s  ac %d/%d\n", pad, d, n))
 		}
 	}
@@ -234,7 +234,7 @@ func Table(ix *model.Index, ts []*model.Ticket) string {
 	rows := make([][]string, 0, len(ts)+1)
 	rows = append(rows, []string{"ID", "STATUS", "P", "WHERE", "ASSIGNEE", "TITLE", "NOTES"})
 	for _, t := range ts {
-		rows = append(rows, []string{t.ID, string(t.Status), fmt.Sprint(t.Priority), Where(ix, t), t.Assignee, t.Title, strings.Join(Badges(ix, t), "; ")})
+		rows = append(rows, []string{t.ID, string(ix.Status(t.ID)), fmt.Sprint(t.Priority), Where(ix, t), t.Assignee, t.Title, strings.Join(Badges(ix, t), "; ")})
 	}
 	widths := make([]int, len(rows[0]))
 	for _, r := range rows {
@@ -262,7 +262,11 @@ func Table(ix *model.Index, ts []*model.Ticket) string {
 func Header(ix *model.Index, t *model.Ticket) string {
 	var sb strings.Builder
 	sb.WriteString(fmt.Sprintf("%s  %s\n", t.ID, t.Title))
-	sb.WriteString(fmt.Sprintf("status: %s   priority: P%d", t.Status, t.Priority))
+	st := ix.Status(t.ID)
+	sb.WriteString(fmt.Sprintf("status: %s   priority: P%d", st, t.Priority))
+	if st != t.Status {
+		sb.WriteString(derivedNote(t.Status))
+	}
 	if t.Slug != "" {
 		sb.WriteString("   slug: " + t.Slug)
 	}
@@ -290,13 +294,13 @@ func Header(ix *model.Index, t *model.Ticket) string {
 		d, n := ix.Progress(t.ID)
 		sb.WriteString(fmt.Sprintf("children (%d/%d done):\n", d, n))
 		for _, k := range kids {
-			sb.WriteString(fmt.Sprintf("  %s  %-7s %s\n", k.ID, k.Status, k.Title))
+			sb.WriteString(fmt.Sprintf("  %s  %-7s %s\n", k.ID, ix.Status(k.ID), k.Title))
 		}
 	}
 	if bl := ix.BlockedBy(t.ID); len(bl) > 0 {
 		parts := make([]string, len(bl))
 		for i, b := range bl {
-			parts[i] = fmt.Sprintf("%s (%s)", b.ID, b.Status)
+			parts[i] = fmt.Sprintf("%s (%s)", b.ID, ix.Status(b.ID))
 		}
 		sb.WriteString("blocked by: " + strings.Join(parts, ", ") + "\n")
 	}
@@ -309,4 +313,8 @@ func Header(ix *model.Index, t *model.Ticket) string {
 	}
 	sb.WriteString(fmt.Sprintf("created: %s   updated: %s\n", t.Created.Local().Format("2006-01-02 15:04"), t.Updated.Local().Format("2006-01-02 15:04")))
 	return sb.String()
+}
+
+func derivedNote(stored model.Status) string {
+	return fmt.Sprintf(" (derived from children; stored %s)", stored)
 }

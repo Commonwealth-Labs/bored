@@ -30,7 +30,7 @@ func (a *App) startForm() (tea.Model, tea.Cmd) {
 	}
 	parentOpts := []huh.Option[string]{huh.NewOption("(none: a new root)", "")}
 	for _, t := range a.ix.All() {
-		if t.Status == model.StatusDone {
+		if a.ix.Status(t.ID) == model.StatusDone {
 			continue
 		}
 		label := t.ID + "  " + t.Title
@@ -130,7 +130,7 @@ func (a *App) createFromDraft(d draft) tea.Cmd {
 			default:
 				t.Repo = d.repo
 			}
-			t.Body = store.NewBody(d.description, nil)
+			t.Body = model.NewBody(d.description, nil)
 			if err := tx.Create(t); err != nil {
 				return err
 			}

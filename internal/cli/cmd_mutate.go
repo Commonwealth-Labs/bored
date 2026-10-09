@@ -47,18 +47,17 @@ func mutateOne(ref string, fn func(tx *store.Tx, t *model.Ticket) (string, error
 
 func newMoveCmd() *cobra.Command {
 	var note string
-	var force bool
 	c := &cobra.Command{
 		Use:   "move <id> <status>",
 		Short: "Move a ticket to a status (todo clears the assignee)",
-		Args:  exactArgs(2, "move <id> <status> [-m note] [--force]"),
+		Args:  exactArgs(2, "move <id> <status> [-m note]"),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			to, err := model.ParseStatus(args[1])
 			if err != nil {
 				return err
 			}
 			return mutateOne(args[0], func(tx *store.Tx, t *model.Ticket) (string, error) {
-				if err := tx.Index().CanMove(t, to, force); err != nil {
+				if err := tx.Index().CanMove(t, to); err != nil {
 					return "", err
 				}
 				from := t.Status
@@ -68,13 +67,17 @@ func newMoveCmd() *cobra.Command {
 				if note != "" {
 					line += ": " + note
 				}
-				t.Body = store.AppendLog(t.Body, tx.Now().Local(), who, line)
+				t.Body = model.AppendLog(t.Body, tx.Now().Local(), who, line)
+				if to == model.StatusDone {
+					for _, p := range model.CascadeDone(tx.Index(), t, who, tx.Now()) {
+						tx.Put(p)
+					}
+				}
 				return fmt.Sprintf("bored: move %s %s->%s (%s)", t.ID, from, to, who), nil
 			}, func(t *model.Ticket) string { return fmt.Sprintf("%s -> %s\n", t.ID, t.Status) })
 		},
 	}
 	c.Flags().StringVarP(&note, "message", "m", "", "note appended to the log")
-	c.Flags().BoolVar(&force, "force", false, "allow done with open children")
 	return c
 }
 
@@ -91,7 +94,7 @@ func newClaimCmd() *cobra.Command {
 					return "", err
 				}
 				model.Claim(t, who, tx.Now())
-				t.Body = store.AppendLog(t.Body, tx.Now().Local(), who, "claimed")
+				t.Body = model.AppendLog(t.Body, tx.Now().Local(), who, "claimed")
 				return fmt.Sprintf("bored: claim %s (%s)", t.ID, who), nil
 			}, func(t *model.Ticket) string { return fmt.Sprintf("%s claimed by %s\n", t.ID, t.Assignee) })
 		},
@@ -118,13 +121,16 @@ func newDoneCmd() *cobra.Command {
 				if note != "" {
 					line += ": " + note
 				}
-				t.Body = store.AppendLog(t.Body, tx.Now().Local(), who, line)
+				t.Body = model.AppendLog(t.Body, tx.Now().Local(), who, line)
+				for _, p := range model.CascadeDone(tx.Index(), t, who, tx.Now()) {
+					tx.Put(p)
+				}
 				return fmt.Sprintf("bored: done %s (%s)", t.ID, who), nil
 			}, func(t *model.Ticket) string { return t.ID + " done\n" })
 		},
 	}
 	c.Flags().StringVarP(&note, "message", "m", "", "note appended to the log")
-	c.Flags().BoolVar(&force, "force", false, "allow from doing/todo and with open children")
+	c.Flags().BoolVar(&force, "force", false, "allow from doing or todo, skipping review")
 	return c
 }
 
@@ -139,7 +145,7 @@ func newLogCmd() *cobra.Command {
 				return fmt.Errorf("%w: empty log message", model.ErrUsage)
 			}
 			return mutateOne(args[0], func(tx *store.Tx, t *model.Ticket) (string, error) {
-				t.Body = store.AppendLog(t.Body, tx.Now().Local(), actor(tx.Store()), msg)
+				t.Body = model.AppendLog(t.Body, tx.Now().Local(), actor(tx.Store()), msg)
 				return "bored: log " + t.ID, nil
 			}, func(t *model.Ticket) string { return t.ID + ": logged\n" })
 		},
@@ -171,9 +177,9 @@ func newACCmd() *cobra.Command {
 				if err != nil {
 					return err
 				}
-				items := store.ListAC(t.Body)
+				items := model.ListAC(t.Body)
 				if items == nil {
-					items = []store.ACItem{}
+					items = []model.ACItem{}
 				}
 				var sb strings.Builder
 				for _, it := range items {
@@ -197,14 +203,14 @@ func newACCmd() *cobra.Command {
 				}
 				done := op == "check"
 				return mutateOne(args[0], func(tx *store.Tx, t *model.Ticket) (string, error) {
-					body, err := store.SetAC(t.Body, n, done)
+					body, err := model.SetAC(t.Body, n, done)
 					if err != nil {
 						return "", fmt.Errorf("%w: %v", model.ErrNotFound, err)
 					}
 					t.Body = body
 					return fmt.Sprintf("bored: ac %s %s %d", t.ID, op, n), nil
 				}, func(t *model.Ticket) string {
-					d, tot := store.CountAC(t.Body)
+					d, tot := model.CountAC(t.Body)
 					return fmt.Sprintf("%s: ac %d/%d done\n", t.ID, d, tot)
 				})
 			case "add":
@@ -213,10 +219,10 @@ func newACCmd() *cobra.Command {
 				}
 				text := strings.Join(args[2:], " ")
 				return mutateOne(args[0], func(tx *store.Tx, t *model.Ticket) (string, error) {
-					t.Body = store.AddAC(t.Body, text)
+					t.Body = model.AddAC(t.Body, text)
 					return "bored: ac " + t.ID + " add", nil
 				}, func(t *model.Ticket) string {
-					_, tot := store.CountAC(t.Body)
+					_, tot := model.CountAC(t.Body)
 					return fmt.Sprintf("%s: %d acceptance criteria\n", t.ID, tot)
 				})
 			}

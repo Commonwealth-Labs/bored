@@ -259,7 +259,7 @@ func (a *App) rebuild() {
 	}
 	a.roots = nil
 	for _, r := range a.ix.Roots() {
-		if r.Status != model.StatusDone {
+		if a.ix.Status(r.ID) != model.StatusDone {
 			a.roots = append(a.roots, r)
 		}
 	}
@@ -392,7 +392,7 @@ func (a *App) ticketAction(k string, t *model.Ticket) (tea.Cmd, bool) {
 }
 
 func (a *App) moveBy(t *model.Ticket, delta int) tea.Cmd {
-	i := t.Status.Index() + delta
+	i := a.ix.Status(t.ID).Index() + delta
 	if i < 0 || i >= len(model.AllStatuses) {
 		return nil
 	}
@@ -403,12 +403,17 @@ func (a *App) moveBy(t *model.Ticket, delta int) tea.Cmd {
 		if err != nil {
 			return err
 		}
-		if err := tx.Index().CanMove(cur, to, false); err != nil {
+		if err := tx.Index().CanMove(cur, to); err != nil {
 			return err
 		}
 		model.ApplyMove(cur, to)
-		cur.Body = store.AppendLog(cur.Body, tx.Now().Local(), actor, "-> "+string(to))
+		cur.Body = model.AppendLog(cur.Body, tx.Now().Local(), actor, "-> "+string(to))
 		tx.Put(cur)
+		if to == model.StatusDone {
+			for _, p := range model.CascadeDone(tx.Index(), cur, actor, tx.Now()) {
+				tx.Put(p)
+			}
+		}
 		return nil
 	})
 	if to == model.StatusDone {
@@ -429,7 +434,7 @@ func (a *App) claim(t *model.Ticket) tea.Cmd {
 			return err
 		}
 		model.Claim(cur, actor, tx.Now())
-		cur.Body = store.AppendLog(cur.Body, tx.Now().Local(), actor, "claimed")
+		cur.Body = model.AppendLog(cur.Body, tx.Now().Local(), actor, "claimed")
 		tx.Put(cur)
 		return nil
 	})
@@ -446,8 +451,11 @@ func (a *App) done(t *model.Ticket) tea.Cmd {
 			return err
 		}
 		model.ApplyMove(cur, model.StatusDone)
-		cur.Body = store.AppendLog(cur.Body, tx.Now().Local(), actor, "-> done")
+		cur.Body = model.AppendLog(cur.Body, tx.Now().Local(), actor, "-> done")
 		tx.Put(cur)
+		for _, p := range model.CascadeDone(tx.Index(), cur, actor, tx.Now()) {
+			tx.Put(p)
+		}
 		return nil
 	})
 	a.confirm(fmt.Sprintf("Mark %s done? (y/n)", id), do)
@@ -529,7 +537,7 @@ func (a *App) updatePrompt(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 				if err != nil {
 					return err
 				}
-				cur.Body = store.AppendLog(cur.Body, tx.Now().Local(), actor, val)
+				cur.Body = model.AppendLog(cur.Body, tx.Now().Local(), actor, val)
 				tx.Put(cur)
 				return nil
 			})
@@ -725,14 +733,14 @@ func (a *App) details(t *model.Ticket) string {
 	if t == nil {
 		return ""
 	}
-	parts := []string{a.st.id.Render(t.ID), fmt.Sprintf("P%d", t.Priority), string(t.Status)}
+	parts := []string{a.st.id.Render(t.ID), fmt.Sprintf("P%d", t.Priority), string(a.ix.Status(t.ID))}
 	if w := render.Where(a.ix, t); w != "" {
 		parts = append(parts, w)
 	}
 	if t.Assignee != "" {
 		parts = append(parts, a.st.assignee.Render(t.Assignee))
 	}
-	if d, n := store.CountAC(t.Body); n > 0 {
+	if d, n := model.CountAC(t.Body); n > 0 {
 		parts = append(parts, a.st.badge.Render(fmt.Sprintf("ac %d/%d", d, n)))
 	}
 	if d, n := a.ix.Progress(t.ID); n > 0 {

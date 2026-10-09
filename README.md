@@ -47,6 +47,20 @@ assignee: ""
 - 2026-10-09 12:00 claude: claimed
 ```
 
+## Containers
+
+A ticket with children is a container. While any child is open:
+
+- its status is **derived** from the children: backlog until one is ready,
+  todo once one is, doing once any has started or finished. The stored
+  status is ignored and `move`/`done` on it are refused.
+- it stays off the board; the tree shows it with a done/total count.
+
+When the last child is done, the parent either closes automatically (if it
+has no acceptance criteria of its own, it was only a grouping, and the same
+check runs on its parent) or becomes a todo ticket on the board (if it has
+criteria, that is its own work, now unblocked). Both leave a log line.
+
 ## Everyday commands
 
 ```

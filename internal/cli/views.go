@@ -4,7 +4,6 @@ import (
 	"time"
 
 	"github.com/Commonwealth-Labs/bored/internal/model"
-	"github.com/Commonwealth-Labs/bored/internal/store"
 )
 
 type counts struct {
@@ -43,7 +42,7 @@ type ticketView struct {
 
 func view(ix *model.Index, t *model.Ticket, full bool) ticketView {
 	v := ticketView{
-		ID: t.ID, Title: t.Title, Status: string(t.Status), Parent: t.Parent, Slug: t.Slug, Repo: t.Repo,
+		ID: t.ID, Title: t.Title, Status: string(ix.Status(t.ID)), Parent: t.Parent, Slug: t.Slug, Repo: t.Repo,
 		Priority: t.Priority, DependsOn: t.DependsOn, Labels: t.Labels, Assignee: t.Assignee,
 		Created: t.Created, Updated: t.Updated, ClaimedAt: t.ClaimedAt, Branch: t.Branch, Path: t.Path,
 		BlockedBy: []string{}, Blocks: []string{}, Children: []string{},
@@ -69,7 +68,7 @@ func view(ix *model.Index, t *model.Ticket, full bool) ticketView {
 		v.Children = append(v.Children, c.ID)
 	}
 	v.Progress.Done, v.Progress.Total = ix.Progress(t.ID)
-	v.AC.Done, v.AC.Total = store.CountAC(t.Body)
+	v.AC.Done, v.AC.Total = model.CountAC(t.Body)
 	if full {
 		v.Body = t.Body
 	}

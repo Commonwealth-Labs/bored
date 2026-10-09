@@ -8,7 +8,6 @@ import (
 
 	"github.com/Commonwealth-Labs/bored/internal/model"
 	"github.com/Commonwealth-Labs/bored/internal/render"
-	"github.com/Commonwealth-Labs/bored/internal/store"
 	"github.com/spf13/cobra"
 )
 
@@ -37,7 +36,7 @@ func newListCmd() *cobra.Command {
 			if !all && sc.Status == "" {
 				kept := ts[:0]
 				for _, t := range ts {
-					if t.Status != model.StatusDone {
+					if ix.Status(t.ID) != model.StatusDone {
 						kept = append(kept, t)
 					}
 				}
@@ -102,7 +101,7 @@ func newTreeCmd() *cobra.Command {
 				roots = []*model.Ticket{t}
 			} else {
 				for _, r := range ix.Roots() {
-					if all || r.Status != model.StatusDone {
+					if all || ix.Status(r.ID) != model.StatusDone {
 						roots = append(roots, r)
 					}
 				}
@@ -296,7 +295,7 @@ func newPrimeCmd() *cobra.Command {
 				roots := map[string]bool{}
 				var names []string
 				for _, t := range ix.All() {
-					if t.Repo == repo.Name && t.Status != model.StatusDone {
+					if t.Repo == repo.Name && ix.Status(t.ID) != model.StatusDone {
 						r := ix.RootOf(t.ID)
 						if !roots[r.ID] {
 							roots[r.ID] = true
@@ -364,4 +363,4 @@ func newPrimeCmd() *cobra.Command {
 }
 
 // unused guard to keep store import if views change
-var _ = store.CountAC
+var _ = model.CountAC

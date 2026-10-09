@@ -34,7 +34,7 @@ func seed(t *testing.T) *store.Store {
 	mk := func(title, parent string, pri int, ac []string) string {
 		var id string
 		err := s.Mutate("", func(tx *store.Tx) error {
-			tk := &model.Ticket{Title: title, Priority: pri, Body: store.NewBody("desc of "+title, ac)}
+			tk := &model.Ticket{Title: title, Priority: pri, Body: model.NewBody("desc of "+title, ac)}
 			if parent != "" {
 				p, err := tx.Resolve(parent)
 				if err != nil {
@@ -331,7 +331,7 @@ func TestPollReloadsWhenFilesChange(t *testing.T) {
 	before := len(a.ix.All())
 	// Another process adds a ticket.
 	err := a.store.Mutate("", func(tx *store.Tx) error {
-		return tx.Create(&model.Ticket{Title: "From elsewhere", Priority: 3, Body: store.NewBody("", nil)})
+		return tx.Create(&model.Ticket{Title: "From elsewhere", Priority: 3, Body: model.NewBody("", nil)})
 	})
 	if err != nil {
 		t.Fatal(err)
