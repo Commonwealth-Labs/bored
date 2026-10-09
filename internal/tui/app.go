@@ -539,7 +539,11 @@ func (a *App) updatePrompt(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 
 func (a *App) View() tea.View {
 	var body string
-	switch a.mode {
+	bodyMode := a.mode
+	if a.mode == modeConfirm || a.mode == modePrompt {
+		bodyMode = a.prevMode // keep showing what the user was looking at
+	}
+	switch bodyMode {
 	case modeHelp:
 		body = a.renderHelp()
 	case modeForm:

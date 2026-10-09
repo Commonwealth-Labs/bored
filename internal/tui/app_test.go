@@ -312,3 +312,23 @@ func TestConfirmDialogIsVisible(t *testing.T) {
 		t.Fatalf("enter should confirm: %s", a.status)
 	}
 }
+
+func TestConfirmFromDetailKeepsDetailVisible(t *testing.T) {
+	a := newTestApp(t, 120, 30)
+	drive(t, a, key("l"))
+	drive(t, a, key("c"))
+	drive(t, a, key("]"))
+	drive(t, a, key("enter"))
+	if a.mode != modeDetail {
+		t.Fatal("expected detail")
+	}
+	drive(t, a, key("d"))
+	v := plain(a)
+	if !strings.Contains(v, "Mark T-3 done?") || !strings.Contains(v, "under: T-2") {
+		t.Errorf("dialog should overlay the detail view:\n%s", v)
+	}
+	drive(t, a, key("y"))
+	if a.ix.Get("T-3").Status != model.StatusDone || a.mode != modeDetail {
+		t.Errorf("after confirm: status=%s mode=%d", a.ix.Get("T-3").Status, a.mode)
+	}
+}
