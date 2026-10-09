@@ -72,3 +72,70 @@ Exit codes: `0` ok, `1` failure, `2` usage, `3` not found, `4` conflict
 make test     # unit tests and a subprocess test of the CLI
 make smoke    # end-to-end script against a throwaway store
 ```
+
+## Claude Code skills
+
+Four skills drive the board from inside a Claude Code session. They are
+embedded in the binary:
+
+```
+bored install-skills                                   # copy into ~/.claude/skills
+bored install-skills --symlink --repo-dir ~/src/bored  # or link to a checkout for live editing
+```
+
+| Skill | What it does | Mutates? |
+|---|---|---|
+| `/bored-plan [id\|slug\|topic]` | Decomposes one ticket (or a new topic) into children. Proposes a table, waits for confirmation, then creates. | yes, after confirmation |
+| `/bored-work [id]` | Claims a ticket (or `bored next`), checks it's in the right repo, works it, logs, ticks criteria, moves to review. Never marks done. | yes |
+| `/bored-review [id]` | Checks a review ticket against each criterion, recommends done or back to todo. Asks before `done`. | yes, after confirmation |
+| `/bored-next [id\|slug]` | Answers "what should I do next": what's waiting on you, the pick and why, what Claude could take in parallel. | no |
+
+Each skill declares `allowed-tools: Bash(bored *) ...`, which pre-approves
+those commands for the invoking turn. The pattern matches commands that start
+with the bare word `bored`, so the binary must be on PATH; `~/go/bin/bored`
+would prompt.
+
+### Agents act as `claude`
+
+Skills pass `--as claude` on mutating commands. `bored next --as claude` will
+hand back a ticket Claude already has in `doing` before offering anything new.
+
+### SessionStart hook (optional)
+
+To have every session open knowing the board, add to `~/.claude/settings.json`:
+
+```json
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume|clear|compact",
+        "hooks": [
+          { "type": "command", "command": "command -v bored >/dev/null && bored prime 2>/dev/null || true" }
+        ]
+      }
+    ]
+  }
+}
+```
+
+`bored prime` prints the workflow rules, the board scoped to the repo you are
+in, and the next pick. It always exits 0 and stays well under the 10,000
+character hook cap.
+
+### Plan mode and headless runs
+
+If `~/.claude/settings.json` sets `"defaultMode": "plan"`, sessions start in
+plan mode and the mutating skills will stop at a written plan instead of
+touching the board. Interactively, leave plan mode (shift+tab) before running
+`/bored-work` or confirming a `/bored-plan` table. Headlessly, pass the mode
+explicitly:
+
+```
+claude -p "/bored-work 12" --permission-mode acceptEdits
+claude -p "/bored-next"                                  # read-only, works in plan mode
+```
+
+Measured on 2026-10-09: `/bored-next` runs cost about $0.40, a `/bored-plan`
+that creates eight tickets about $1.30, a `/bored-work` on a thinking ticket
+about $0.70, a `/bored-review` that runs the test suite about $1.00.

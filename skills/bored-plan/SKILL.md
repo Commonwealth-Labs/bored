@@ -58,9 +58,10 @@ Rules of thumb:
 - Thinking work (decide, design, spike, research) is a legitimate ticket. Its
   criteria look like "decision and reasoning recorded in this ticket". It gets
   no repo.
-- Code work gets a repo. If that repo does not exist yet, add a child "Create
-  repo X at <path> and register it with `bored repo add`" and make the code
-  tickets depend on it.
+- Code work gets a repo. If that repo does not exist yet, register it now so
+  tickets can name it (`bored repo add <name> <path>`; the path need not exist),
+  add a child "Create repo <name> at <path>" and make the code tickets depend
+  on that child.
 - `depends_on` is for real ordering constraints only, not for preference.
 - Priority 1 to 4; 3 is the default. Reserve 1 for things that unblock others.
 
