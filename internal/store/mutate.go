@@ -15,6 +15,10 @@ type Tx struct {
 	now     time.Time
 	dirty   map[string]*model.Ticket
 	created []string
+
+	// CommitMsg is the git commit message. Mutate's argument seeds it; fn may
+	// overwrite it once ids are known. Empty means no commit.
+	CommitMsg string
 }
 
 // Index is the snapshot taken under the lock.
@@ -89,7 +93,7 @@ func (s *Store) Mutate(commitMsg string, fn func(tx *Tx) error) error {
 	if err != nil {
 		return err
 	}
-	tx := &Tx{s: s, ix: ix, now: time.Now().UTC().Truncate(time.Second), dirty: map[string]*model.Ticket{}}
+	tx := &Tx{s: s, ix: ix, now: time.Now().UTC().Truncate(time.Second), dirty: map[string]*model.Ticket{}, CommitMsg: commitMsg}
 	if err := fn(tx); err != nil {
 		for _, id := range tx.created {
 			s.release(id)
@@ -105,8 +109,8 @@ func (s *Store) Mutate(commitMsg string, fn func(tx *Tx) error) error {
 	if len(tx.dirty) == 0 {
 		return nil
 	}
-	if s.Cfg.AutoCommit && !s.NoCommit {
-		if _, err := s.Commit(commitMsg); err != nil {
+	if s.Cfg.AutoCommit && !s.NoCommit && tx.CommitMsg != "" {
+		if _, err := s.Commit(tx.CommitMsg); err != nil {
 			return fmt.Errorf("tickets written but git commit failed: %w", err)
 		}
 	}
