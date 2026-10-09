@@ -17,14 +17,13 @@ func newStyles(dark bool) styles {
 	bad := ld(lipgloss.Color("#B91C1C"), lipgloss.Color("#F87171"))
 	good := ld(lipgloss.Color("#047857"), lipgloss.Color("#34D399"))
 	border := ld(lipgloss.Color("#C9C9C9"), lipgloss.Color("#3F3F3F"))
-	selBg := ld(lipgloss.Color("#EDE9FE"), lipgloss.Color("#2B2540"))
 
 	return styles{
 		title:       lipgloss.NewStyle().Bold(true).Foreground(accent),
 		colHead:     lipgloss.NewStyle().Bold(true).Foreground(muted),
 		colHeadSel:  lipgloss.NewStyle().Bold(true).Foreground(accent).Underline(true),
 		card:        lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(border).Padding(0, 1).Foreground(fg),
-		cardSel:     lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(accent).Padding(0, 1).Foreground(fg).Background(selBg),
+		cardSel:     lipgloss.NewStyle().Reverse(true).Bold(true),
 		id:          lipgloss.NewStyle().Bold(true).Foreground(accent),
 		dim:         lipgloss.NewStyle().Foreground(muted),
 		badge:       lipgloss.NewStyle().Foreground(warn),
@@ -34,7 +33,7 @@ func newStyles(dark bool) styles {
 		errText:     lipgloss.NewStyle().Foreground(bad),
 		ok:          lipgloss.NewStyle().Foreground(good),
 		help:        lipgloss.NewStyle().Foreground(muted),
-		treeSel:     lipgloss.NewStyle().Background(selBg).Bold(true),
+		treeSel:     lipgloss.NewStyle().Reverse(true).Bold(true),
 		promptLabel: lipgloss.NewStyle().Bold(true).Foreground(accent),
 		accent:      lipgloss.NewStyle().Foreground(accent),
 		muted:       lipgloss.NewStyle().Foreground(muted),

@@ -329,12 +329,13 @@ func (a *App) updateNav(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		a.mode = modeHelp
 		return a, nil
 	case "t":
+		cur := a.current() // capture before switching: current() depends on the view
 		if a.view == viewBoard {
 			a.view = viewTree
-			a.syncTreeCursorTo(a.current())
+			a.syncTreeCursorTo(cur)
 		} else {
 			a.view = viewBoard
-			a.syncBoardCursorTo(a.current())
+			a.syncBoardCursorTo(cur)
 		}
 		return a, nil
 	case "r":
@@ -715,15 +716,16 @@ func truncate(s string, w int) string {
 // renderCard is one line: id and title. Everything else lives in the
 // details line at the bottom for the selected card.
 func (a *App) renderCard(t *model.Ticket, width int, selected bool) string {
+	plain := t.ID + "  " + t.Title
+	if selected {
+		// One style over plain text: nested styles would reset the highlight mid-line.
+		return a.st.treeSel.Width(width).Render(truncate(plain, width))
+	}
 	title := t.Title
 	if a.ix.IsBlocked(t.ID) {
 		title = a.st.blocked.Render(title)
 	}
-	line := truncate(a.st.id.Render(t.ID)+"  "+title, width)
-	if selected {
-		return a.st.treeSel.Width(width).Render(line)
-	}
-	return line
+	return truncate(a.st.id.Render(t.ID)+"  "+title, width)
 }
 
 // details is the one-line summary of the selected ticket for the status area.

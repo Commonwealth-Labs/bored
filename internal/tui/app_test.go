@@ -128,6 +128,20 @@ func TestBoardRendersAndHidesContainers(t *testing.T) {
 	}
 }
 
+func TestViewToggleCarriesCursor(t *testing.T) {
+	a := newTestApp(t, 120, 30)
+	drive(t, a, key("l")) // board: T-3
+	drive(t, a, key("t"))
+	if a.current() == nil || a.current().ID != "T-3" {
+		t.Fatalf("tree cursor should land on T-3, got %v", a.current())
+	}
+	drive(t, a, key("j")) // tree: next row is T-4
+	drive(t, a, key("t"))
+	if a.current() == nil || a.current().ID != "T-4" {
+		t.Fatalf("board cursor should land on T-4, got %v", a.current())
+	}
+}
+
 func TestNavigationDetailAndTree(t *testing.T) {
 	a := newTestApp(t, 120, 30)
 	// cursor starts backlog col; move to todo column and down
@@ -340,5 +354,36 @@ func TestConfirmFromDetailKeepsDetailVisible(t *testing.T) {
 	drive(t, a, key("y"))
 	if a.ix.Get("T-3").Status != model.StatusDone || a.mode != modeDetail {
 		t.Errorf("after confirm: status=%s mode=%d", a.ix.Get("T-3").Status, a.mode)
+	}
+}
+
+func TestSelectedRowHighlightCoversWholeLine(t *testing.T) {
+	a := newTestApp(t, 120, 30)
+	drive(t, a, key("l"))
+	raw := a.View().Content
+	// The selected row must be one styled run: bold+reverse immediately
+	// followed by id and title, with no reset in between.
+	if !strings.Contains(raw, "\x1b[1;7mT-3  Decide IdP") {
+		for _, line := range strings.Split(raw, "\n") {
+			if strings.Contains(line, "Decide IdP") {
+				t.Fatalf("selected row not a single highlighted run: %q", line)
+			}
+		}
+		t.Fatal("selected row not found")
+	}
+	// Tree view: same rule for the selected row.
+	drive(t, a, key("t"))
+	raw = a.View().Content
+	if !strings.Contains(raw, "\x1b[1;7m") {
+		t.Fatal("tree selection not highlighted")
+	}
+	for _, line := range strings.Split(raw, "\n") {
+		if strings.Contains(line, "\x1b[1;7m") {
+			seg := line[strings.Index(line, "\x1b[1;7m"):]
+			end := strings.Index(seg, "\x1b[m")
+			if end < 0 || !strings.Contains(seg[:end], "Decide IdP") {
+				t.Errorf("tree selected row is not one highlighted run: %q", line)
+			}
+		}
 	}
 }

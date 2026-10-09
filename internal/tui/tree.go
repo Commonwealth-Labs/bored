@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"charm.land/lipgloss/v2"
 	"github.com/Commonwealth-Labs/bored/internal/model"
 )
 
@@ -117,26 +118,35 @@ func (a *App) renderTree() string {
 	for i := a.treeOff; i < end; i++ {
 		r := a.rows[i]
 		t := r.t
-		line := a.st.dim.Render(r.prefix) + a.st.id.Render(t.ID)
-		if t.Slug != "" {
-			line += a.st.dim.Render(" (" + t.Slug + ")")
+		sel := i == a.trow
+		// Build the row twice: plain for the selected row (one style over it
+		// all) and styled otherwise.
+		style := func(st lipgloss.Style, text string) string {
+			if sel {
+				return text
+			}
+			return st.Render(text)
 		}
-		line += fmt.Sprintf("  %-7s ", t.Status) + a.st.dim.Render(fmt.Sprintf("P%d", t.Priority))
+		line := style(a.st.dim, r.prefix) + style(a.st.id, t.ID)
+		if t.Slug != "" {
+			line += style(a.st.dim, " ("+t.Slug+")")
+		}
+		line += fmt.Sprintf("  %-7s ", t.Status) + style(a.st.dim, fmt.Sprintf("P%d", t.Priority))
 		if t.Repo != "" {
-			line += a.st.dim.Render("  " + t.Repo)
+			line += style(a.st.dim, "  "+t.Repo)
 		}
 		if t.Assignee != "" {
-			line += a.st.assignee.Render("  " + t.Assignee)
+			line += style(a.st.assignee, "  "+t.Assignee)
 		}
 		line += "  " + t.Title
 		if d, n := a.ix.Progress(t.ID); n > 0 {
-			line += a.st.badge.Render(fmt.Sprintf("  %d/%d", d, n))
+			line += style(a.st.badge, fmt.Sprintf("  %d/%d", d, n))
 		}
 		if a.ix.IsBlocked(t.ID) {
-			line += a.st.blocked.Render("  blocked")
+			line += style(a.st.blocked, "  blocked")
 		}
 		line = truncate(line, a.width)
-		if i == a.trow {
+		if sel {
 			line = a.st.treeSel.Width(a.width).Render(line)
 		}
 		sb.WriteString(line)
