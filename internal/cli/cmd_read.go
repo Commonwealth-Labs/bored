@@ -61,16 +61,20 @@ type treeNode struct {
 	Kids []treeNode `json:"children_tree"`
 }
 
-func buildTree(ix *model.Index, t *model.Ticket) treeNode {
+func buildTree(ix *model.Index, t *model.Ticket, level, maxDepth int) treeNode {
 	n := treeNode{ticketView: view(ix, t, false), Kids: []treeNode{}}
+	if maxDepth > 0 && level >= maxDepth {
+		return n
+	}
 	for _, c := range ix.Children(t.ID) {
-		n.Kids = append(n.Kids, buildTree(ix, c))
+		n.Kids = append(n.Kids, buildTree(ix, c, level+1, maxDepth))
 	}
 	return n
 }
 
 func newTreeCmd() *cobra.Command {
 	var all, long bool
+	var depth int
 	c := &cobra.Command{
 		Use:   "tree [id|slug]",
 		Short: "Show the hierarchy with progress per container",
@@ -105,9 +109,9 @@ func newTreeCmd() *cobra.Command {
 			}
 			nodes := make([]treeNode, 0, len(roots))
 			for _, r := range roots {
-				nodes = append(nodes, buildTree(ix, r))
+				nodes = append(nodes, buildTree(ix, r, 1, depth))
 			}
-			text := render.Tree(ix, roots, long)
+			text := render.Tree(ix, roots, long, depth)
 			if text == "" {
 				text = "(no tickets)\n"
 			}
@@ -116,6 +120,7 @@ func newTreeCmd() *cobra.Command {
 	}
 	c.Flags().BoolVar(&all, "all", false, "include done roots")
 	c.Flags().BoolVarP(&long, "long", "l", false, "show each ticket's description and AC count")
+	c.Flags().IntVarP(&depth, "depth", "d", 0, "levels to show (1 = roots only; 0 = all)")
 	return c
 }
 

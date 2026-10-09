@@ -149,15 +149,17 @@ func Board(ix *model.Index, sc model.Scope, o BoardOpts) string {
 
 // Tree renders roots and their subtrees with box-drawing guides. With long,
 // each node is followed by its description's first paragraph and its AC count.
-func Tree(ix *model.Index, roots []*model.Ticket, long bool) string {
+// depth limits levels shown (1 = roots only); 0 means unlimited. A node whose
+// children are cut off says how many descendants are hidden.
+func Tree(ix *model.Index, roots []*model.Ticket, long bool, depth int) string {
 	var sb strings.Builder
 	for _, r := range roots {
-		writeNode(&sb, ix, r, "", "", long)
+		writeNode(&sb, ix, r, "", "", long, 1, depth)
 	}
 	return sb.String()
 }
 
-func writeNode(sb *strings.Builder, ix *model.Index, t *model.Ticket, prefix, branch string, long bool) {
+func writeNode(sb *strings.Builder, ix *model.Index, t *model.Ticket, prefix, branch string, long bool, level, maxDepth int) {
 	line := branch + t.ID
 	if t.Slug != "" {
 		line += " (" + t.Slug + ")"
@@ -176,8 +178,13 @@ func writeNode(sb *strings.Builder, ix *model.Index, t *model.Ticket, prefix, br
 	if ix.IsBlocked(t.ID) {
 		line += "  [blocked]"
 	}
-	sb.WriteString(line + "\n")
 	kids := ix.Children(t.ID)
+	cut := maxDepth > 0 && level >= maxDepth && len(kids) > 0
+	if cut {
+		line += fmt.Sprintf("  (+%d below)", len(ix.Subtree(t.ID))-1)
+		kids = nil
+	}
+	sb.WriteString(line + "\n")
 	if long {
 		pad := prefix
 		if len(kids) > 0 {
@@ -198,7 +205,7 @@ func writeNode(sb *strings.Builder, ix *model.Index, t *model.Ticket, prefix, br
 		if last {
 			b, next = "└── ", "    "
 		}
-		writeNode(sb, ix, c, prefix+next, prefix+b, long)
+		writeNode(sb, ix, c, prefix+next, prefix+b, long, level+1, maxDepth)
 	}
 }
 
