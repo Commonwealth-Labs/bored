@@ -46,7 +46,9 @@ when any --ac is given. --repo defaults to the parent's repo.`,
 						t.Repo = p.Repo
 					}
 				}
-				if repo != "" {
+				if repo == "none" {
+					t.Repo = ""
+				} else if repo != "" {
 					if _, err := s.Repo(repo); err != nil {
 						return err
 					}
@@ -112,7 +114,7 @@ when any --ac is given. --repo defaults to the parent's repo.`,
 	}
 	c.Flags().StringVar(&parent, "parent", "", "parent ticket (id or slug)")
 	c.Flags().StringVar(&slug, "slug", "", "short name usable wherever an id is")
-	c.Flags().StringVar(&repo, "repo", "", "registered repo this ticket's code work happens in")
+	c.Flags().StringVar(&repo, "repo", "", "registered repo this ticket's code work happens in (default: the parent's; 'none' to clear)")
 	c.Flags().IntVar(&priority, "priority", 3, "1 (highest) to 4")
 	c.Flags().StringSliceVar(&dependsOn, "depends-on", nil, "blockers (ids or slugs, comma-separated or repeated)")
 	c.Flags().StringArrayVar(&labels, "label", nil, "label (repeatable)")
@@ -125,12 +127,12 @@ when any --ac is given. --repo defaults to the parent's repo.`,
 }
 
 func newSetCmd() *cobra.Command {
-	var title, parent, slug, repo, assignee, branch string
+	var title, parent, slug, repo, assignee, branch, description, plan string
 	var priority int
 	c := &cobra.Command{
 		Use:   "set <id>",
-		Short: "Edit fields without an editor (use 'none' to clear parent, repo, slug, assignee or branch)",
-		Args:  exactArgs(1, "set <id> [--title t] [--parent id|none] [--slug s|none] [--repo r|none] [--priority n] [--assignee a|none] [--branch b|none]"),
+		Short: "Edit fields or body sections without an editor (use 'none' to clear parent, repo, slug, assignee or branch)",
+		Args:  exactArgs(1, "set <id> [--title t] [--parent id|none] [--slug s|none] [--repo r|none] [--priority n] [--assignee a|none] [--branch b|none] [--description text] [--plan text]"),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			s, err := openStore()
 			if err != nil {
@@ -203,6 +205,14 @@ func newSetCmd() *cobra.Command {
 					t.Branch = branch
 					changed = append(changed, "branch")
 				}
+				if cmd.Flags().Changed("description") {
+					t.Body = store.SetSection(t.Body, store.SecDescription, description)
+					changed = append(changed, "description")
+				}
+				if cmd.Flags().Changed("plan") {
+					t.Body = store.SetSection(t.Body, store.SecPlan, plan)
+					changed = append(changed, "plan")
+				}
 				if len(changed) == 0 {
 					return fmt.Errorf("%w: nothing to set", model.ErrUsage)
 				}
@@ -228,5 +238,7 @@ func newSetCmd() *cobra.Command {
 	c.Flags().IntVar(&priority, "priority", 3, "1 (highest) to 4")
 	c.Flags().StringVar(&assignee, "assignee", "", "new assignee (or none)")
 	c.Flags().StringVar(&branch, "branch", "", "branch name (or none)")
+	c.Flags().StringVar(&description, "description", "", "replace the Description section")
+	c.Flags().StringVar(&plan, "plan", "", "replace the Plan section")
 	return c
 }
