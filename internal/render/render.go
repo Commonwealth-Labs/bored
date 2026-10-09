@@ -147,16 +147,17 @@ func Board(ix *model.Index, sc model.Scope, o BoardOpts) string {
 	return sb.String()
 }
 
-// Tree renders roots and their subtrees with box-drawing guides.
-func Tree(ix *model.Index, roots []*model.Ticket) string {
+// Tree renders roots and their subtrees with box-drawing guides. With long,
+// each node is followed by its description's first paragraph and its AC count.
+func Tree(ix *model.Index, roots []*model.Ticket, long bool) string {
 	var sb strings.Builder
 	for _, r := range roots {
-		writeNode(&sb, ix, r, "", "", true)
+		writeNode(&sb, ix, r, "", "", long)
 	}
 	return sb.String()
 }
 
-func writeNode(sb *strings.Builder, ix *model.Index, t *model.Ticket, prefix, branch string, root bool) {
+func writeNode(sb *strings.Builder, ix *model.Index, t *model.Ticket, prefix, branch string, long bool) {
 	line := branch + t.ID
 	if t.Slug != "" {
 		line += " (" + t.Slug + ")"
@@ -177,14 +178,36 @@ func writeNode(sb *strings.Builder, ix *model.Index, t *model.Ticket, prefix, br
 	}
 	sb.WriteString(line + "\n")
 	kids := ix.Children(t.ID)
+	if long {
+		pad := prefix
+		if len(kids) > 0 {
+			pad += "│   "
+		} else {
+			pad += "    "
+		}
+		if desc := firstParagraph(store.Section(t.Body, store.SecDescription)); desc != "" {
+			sb.WriteString(pad + "  " + desc + "\n")
+		}
+		if d, n := store.CountAC(t.Body); n > 0 {
+			sb.WriteString(fmt.Sprintf("%s  ac %d/%d\n", pad, d, n))
+		}
+	}
 	for i, c := range kids {
 		last := i == len(kids)-1
 		b, next := "├── ", "│   "
 		if last {
 			b, next = "└── ", "    "
 		}
-		writeNode(sb, ix, c, prefix+next, prefix+b, false)
+		writeNode(sb, ix, c, prefix+next, prefix+b, long)
 	}
+}
+
+func firstParagraph(s string) string {
+	s = strings.TrimSpace(s)
+	if i := strings.Index(s, "\n\n"); i >= 0 {
+		s = s[:i]
+	}
+	return strings.Join(strings.Fields(s), " ")
 }
 
 // Table renders a list.

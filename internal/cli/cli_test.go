@@ -89,8 +89,8 @@ func TestLifecycleAndExitCodes(t *testing.T) {
 	r.code(2, "new", "Dup", "--slug", "root")
 	r.code(3, "show", "42")
 	r.code(2, "move", "2", "sideways")
-	r.code(4, "claim", "3")       // blocked
-	r.code(4, "claim", "root")    // container (and backlog)
+	r.code(4, "claim", "3")    // blocked
+	r.code(4, "claim", "root") // container (and backlog)
 	r.code(5, "next", "--under", "3")
 
 	n := r.jsonOf("next")

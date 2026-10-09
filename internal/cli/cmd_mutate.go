@@ -252,7 +252,9 @@ func newDepCmd() *cobra.Command {
 				}
 				t.DependsOn = append(t.DependsOn, b.ID)
 				return fmt.Sprintf("bored: dep %s blocked-by %s", t.ID, b.ID), nil
-			}, func(t *model.Ticket) string { return fmt.Sprintf("%s depends on %s\n", t.ID, strings.Join(t.DependsOn, ", ")) })
+			}, func(t *model.Ticket) string {
+				return fmt.Sprintf("%s depends on %s\n", t.ID, strings.Join(t.DependsOn, ", "))
+			})
 		},
 	}
 	rm := &cobra.Command{
@@ -279,7 +281,9 @@ func newDepCmd() *cobra.Command {
 				}
 				t.DependsOn = kept
 				return fmt.Sprintf("bored: dep %s unblocked-by %s", t.ID, b.ID), nil
-			}, func(t *model.Ticket) string { return fmt.Sprintf("%s depends on [%s]\n", t.ID, strings.Join(t.DependsOn, ", ")) })
+			}, func(t *model.Ticket) string {
+				return fmt.Sprintf("%s depends on [%s]\n", t.ID, strings.Join(t.DependsOn, ", "))
+			})
 		},
 	}
 	list := &cobra.Command{

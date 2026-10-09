@@ -70,7 +70,7 @@ func buildTree(ix *model.Index, t *model.Ticket) treeNode {
 }
 
 func newTreeCmd() *cobra.Command {
-	var all bool
+	var all, long bool
 	c := &cobra.Command{
 		Use:   "tree [id|slug]",
 		Short: "Show the hierarchy with progress per container",
@@ -107,7 +107,7 @@ func newTreeCmd() *cobra.Command {
 			for _, r := range roots {
 				nodes = append(nodes, buildTree(ix, r))
 			}
-			text := render.Tree(ix, roots)
+			text := render.Tree(ix, roots, long)
 			if text == "" {
 				text = "(no tickets)\n"
 			}
@@ -115,6 +115,7 @@ func newTreeCmd() *cobra.Command {
 		},
 	}
 	c.Flags().BoolVar(&all, "all", false, "include done roots")
+	c.Flags().BoolVarP(&long, "long", "l", false, "show each ticket's description and AC count")
 	return c
 }
 
