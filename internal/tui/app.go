@@ -5,6 +5,7 @@ package tui
 
 import (
 	"fmt"
+	"image/color"
 	"os"
 	"path/filepath"
 	"strings"
@@ -48,6 +49,7 @@ type App struct {
 	actor   string
 	st      styles
 	dark    bool
+	bg      color.Color // terminal background, once reported; replayed to forms
 	width   int
 	height  int
 	tickets []*model.Ticket
@@ -166,9 +168,17 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a, nil
 	case tea.BackgroundColorMsg:
 		a.dark = msg.IsDark()
+		a.bg = msg.Color
 		a.st = newStyles(a.dark)
 		if a.mode == modeDetail {
 			a.openDetail(a.detailID)
+		}
+		if a.form != nil {
+			m, cmd := a.form.Update(msg)
+			if f, ok := m.(*huh.Form); ok {
+				a.form = f
+			}
+			return a, cmd
 		}
 		return a, nil
 	case ticketsLoadedMsg:

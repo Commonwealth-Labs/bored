@@ -21,12 +21,21 @@ func IsTTY(f *os.File) bool {
 	return err == nil && st.Mode()&os.ModeCharDevice != 0
 }
 
-// Markdown renders md for the terminal, falling back to the raw text.
+// Markdown renders md for the terminal, falling back to the raw text. It
+// queries the terminal for its background colour, which reads from stdin, so
+// it must not be called from inside a running Bubble Tea program; use
+// MarkdownWith there.
 func Markdown(md string, width int) string {
+	return MarkdownWith(md, width, os.Getenv("GLAMOUR_STYLE") != "" || lipgloss.HasDarkBackground(os.Stdin, os.Stdout))
+}
+
+// MarkdownWith renders md with an already-known dark/light answer and never
+// touches the terminal.
+func MarkdownWith(md string, width int, dark bool) string {
 	opts := []glamour.TermRendererOption{glamour.WithWordWrap(width)}
 	if os.Getenv("GLAMOUR_STYLE") != "" {
 		opts = append(opts, glamour.WithEnvironmentConfig())
-	} else if lipgloss.HasDarkBackground(os.Stdin, os.Stdout) {
+	} else if dark {
 		opts = append(opts, glamour.WithStandardStyle("dark"))
 	} else {
 		opts = append(opts, glamour.WithStandardStyle("light"))

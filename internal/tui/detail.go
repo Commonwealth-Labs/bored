@@ -12,7 +12,7 @@ func (a *App) openDetail(id string) {
 	}
 	a.detailID = id
 	w := min(a.width-2, 100)
-	body := render.Markdown(t.Body, w)
+	body := render.MarkdownWith(t.Body, w, a.dark)
 	a.vp.SetContent(render.Header(a.ix, t) + "\n" + body)
 	a.layoutDetail()
 }

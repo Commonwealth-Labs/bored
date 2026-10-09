@@ -58,7 +58,17 @@ func (a *App) startForm() (tea.Model, tea.Cmd) {
 	a.form = a.form.WithTheme(huh.ThemeFunc(huh.ThemeCharm))
 	a.prevMode = a.mode
 	a.mode = modeForm
-	return a, a.form.Init()
+	cmd := a.form.Init()
+	if a.bg != nil {
+		// Replay the background we already know so the theme picks light/dark
+		// without the form having to ask the terminal.
+		m, c2 := a.form.Update(tea.BackgroundColorMsg{Color: a.bg})
+		if f, ok := m.(*huh.Form); ok {
+			a.form = f
+		}
+		cmd = tea.Batch(cmd, c2)
+	}
+	return a, cmd
 }
 
 func (a *App) updateForm(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
