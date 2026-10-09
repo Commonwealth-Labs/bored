@@ -10,7 +10,9 @@ import (
 	"strings"
 
 	"github.com/Commonwealth-Labs/bored/internal/model"
+	"github.com/Commonwealth-Labs/bored/internal/render"
 	"github.com/Commonwealth-Labs/bored/internal/store"
+	"github.com/Commonwealth-Labs/bored/internal/tui"
 	"github.com/spf13/cobra"
 )
 
@@ -85,8 +87,14 @@ Exit codes: 0 ok, 1 failure, 2 usage, 3 not found, 4 conflict, 5 nothing to do.`
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			// No TUI yet: fall through to the board.
-			return runBoard(cmd, "", "", nil, false)
+			if g.json || !render.IsTTY(os.Stdout) || !render.IsTTY(os.Stdin) {
+				return runBoard(cmd, "", "", nil, false)
+			}
+			s, err := openStore()
+			if err != nil {
+				return err
+			}
+			return tui.Run(s, actor(s))
 		},
 	}
 	root.PersistentFlags().BoolVar(&g.json, "json", false, "machine-readable output")

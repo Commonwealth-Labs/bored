@@ -3,11 +3,10 @@ package cli
 import (
 	"fmt"
 	"os"
-	"os/exec"
-	"path/filepath"
 	"strconv"
 	"strings"
 
+	"github.com/Commonwealth-Labs/bored/internal/edit"
 	"github.com/Commonwealth-Labs/bored/internal/model"
 	"github.com/Commonwealth-Labs/bored/internal/render"
 	"github.com/Commonwealth-Labs/bored/internal/store"
@@ -376,89 +375,24 @@ func newEditCmd() *cobra.Command {
 	}
 }
 
-// editTicket copies the ticket to a temp file, runs the editor, validates the
-// result, then writes it back under the lock. The lock is not held while the
-// editor is open.
+// editTicket runs the $EDITOR round trip synchronously.
 func editTicket(s *store.Store, id string) error {
-	orig, err := s.Load(id)
+	sess, err := edit.Prepare(s, id)
 	if err != nil {
 		return err
 	}
-	data, err := os.ReadFile(orig.Path)
+	defer sess.Cleanup()
+	if err := sess.Command(s.Cfg).Run(); err != nil {
+		return fmt.Errorf("editor: %w", err)
+	}
+	changed, err := edit.Finish(s, sess)
 	if err != nil {
 		return err
 	}
-	tmpDir, err := os.MkdirTemp("", "bored-edit-")
-	if err != nil {
-		return err
-	}
-	defer os.RemoveAll(tmpDir)
-	tmp := filepath.Join(tmpDir, id+".md")
-	if err := os.WriteFile(tmp, data, 0o644); err != nil {
-		return err
-	}
-	editor := s.Cfg.Editor
-	if editor == "" {
-		editor = os.Getenv("VISUAL")
-	}
-	if editor == "" {
-		editor = os.Getenv("EDITOR")
-	}
-	if editor == "" {
-		editor = "vi"
-	}
-	parts := strings.Fields(editor)
-	cmd := exec.Command(parts[0], append(parts[1:], tmp)...)
-	cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("editor %s: %w", editor, err)
-	}
-	edited, err := os.ReadFile(tmp)
-	if err != nil {
-		return err
-	}
-	if string(edited) == string(data) {
+	if !changed {
 		fmt.Fprintln(os.Stderr, "no changes")
-		return nil
 	}
-	nt, err := store.ParseTicket(edited)
-	if err != nil {
-		return fmt.Errorf("edited file rejected: %w (original left untouched)", err)
-	}
-	if nt.ID != id {
-		return fmt.Errorf("%w: id changed from %s to %s; ids are fixed", model.ErrUsage, id, nt.ID)
-	}
-	return s.Mutate("bored: edit "+id, func(tx *store.Tx) error {
-		cur, err := tx.Resolve(id)
-		if err != nil {
-			return err
-		}
-		if nt.Slug != cur.Slug {
-			if err := tx.CheckSlugFree(nt.Slug, id); err != nil {
-				return err
-			}
-		}
-		if nt.Parent != "" {
-			if _, err := tx.Resolve(nt.Parent); err != nil {
-				return err
-			}
-			if tx.Index().WouldCycleParent(id, nt.Parent) {
-				return fmt.Errorf("%w: parent %s is inside %s's subtree", model.ErrConflict, nt.Parent, id)
-			}
-		}
-		if nt.Repo != "" {
-			if _, err := s.Repo(nt.Repo); err != nil {
-				return err
-			}
-		}
-		if err := nt.Validate(); err != nil {
-			return err
-		}
-		nt.Created = cur.Created
-		nt.Path = cur.Path
-		tx.Put(nt)
-		return nil
-	})
+	return nil
 }
 
 var _ = render.IsTTY
