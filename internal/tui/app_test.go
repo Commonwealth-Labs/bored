@@ -293,3 +293,22 @@ func TestPollReloadsWhenFilesChange(t *testing.T) {
 		t.Errorf("poll did not reload: %d -> %d", before, len(a.ix.All()))
 	}
 }
+
+func TestConfirmDialogIsVisible(t *testing.T) {
+	a := newTestApp(t, 120, 30)
+	drive(t, a, key("l"))
+	drive(t, a, key("c"))
+	drive(t, a, key("]")) // doing -> review
+	drive(t, a, key("d"))
+	if a.mode != modeConfirm {
+		t.Fatal("d from review should ask")
+	}
+	v := plain(a)
+	if !strings.Contains(v, "Mark T-3 done?") || !strings.Contains(v, "y / enter  yes") {
+		t.Errorf("confirm dialog not visible:\n%s", v)
+	}
+	drive(t, a, key("enter"))
+	if a.ix.Get("T-3").Status != model.StatusDone {
+		t.Fatalf("enter should confirm: %s", a.status)
+	}
+}

@@ -14,6 +14,7 @@ import (
 	"charm.land/bubbles/v2/viewport"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/huh/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/Commonwealth-Labs/bored/internal/edit"
 	"github.com/Commonwealth-Labs/bored/internal/model"
 	"github.com/Commonwealth-Labs/bored/internal/render"
@@ -552,6 +553,9 @@ func (a *App) View() tea.View {
 			body = a.renderBoard()
 		}
 	}
+	if a.mode == modeConfirm {
+		body = a.overlay(body, a.renderConfirmBox())
+	}
 	v := tea.NewView(a.renderTitle() + "\n" + body + "\n" + a.renderStatus())
 	v.AltScreen = true
 	v.WindowTitle = "bored"
@@ -594,7 +598,7 @@ func (a *App) renderStatus() string {
 		}
 		line1 = a.st.promptLabel.Render(label) + a.input.View()
 	case modeConfirm:
-		line1 = a.st.promptLabel.Render(a.confirmMsg)
+		line1 = a.st.promptLabel.Render(a.confirmMsg) + a.st.dim.Render("   y = yes, any other key = no")
 	default:
 		if a.status != "" {
 			if a.statErr {
@@ -612,10 +616,46 @@ func (a *App) renderStatus() string {
 		hints = "tab/shift+tab fields  enter next  esc cancel"
 	case modePrompt:
 		hints = "enter apply  esc cancel"
+	case modeConfirm:
+		hints = "y / enter  confirm      n / esc  cancel"
 	default:
 		hints = "j/k/h/l move  enter open  t tree/board  [ ] move  c claim  d done  n new  m log  e edit  / filter  p root  r reload  ? help  q quit"
 	}
 	return truncate(line1, a.width) + "\n" + a.st.help.Render(truncate(hints, a.width))
+}
+
+// renderConfirmBox draws the yes/no dialog.
+func (a *App) renderConfirmBox() string {
+	q := a.confirmMsg
+	box := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(a.st.accent.GetForeground()).
+		Padding(1, 3).
+		Render(a.st.promptLabel.Render(q) + "\n\n" + a.st.dim.Render("y / enter  yes        n / esc  no"))
+	return box
+}
+
+// overlay centres box on top of body, replacing the lines it covers.
+func (a *App) overlay(body, box string) string {
+	h := a.bodyHeight()
+	bodyLines := strings.Split(body, "\n")
+	for len(bodyLines) < h {
+		bodyLines = append(bodyLines, "")
+	}
+	boxLines := strings.Split(box, "\n")
+	bw := 0
+	for _, l := range boxLines {
+		bw = max(bw, lipgloss.Width(l))
+	}
+	top := max(0, (h-len(boxLines))/2)
+	left := max(0, (a.width-bw)/2)
+	for i, bl := range boxLines {
+		if top+i >= len(bodyLines) {
+			break
+		}
+		bodyLines[top+i] = strings.Repeat(" ", left) + bl
+	}
+	return strings.Join(bodyLines[:h], "\n")
 }
 
 func (a *App) renderHelp() string {
