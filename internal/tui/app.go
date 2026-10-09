@@ -15,6 +15,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/huh/v2"
 	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/Commonwealth-Labs/bored/internal/edit"
 	"github.com/Commonwealth-Labs/bored/internal/model"
 	"github.com/Commonwealth-Labs/bored/internal/render"
@@ -639,27 +640,19 @@ func (a *App) renderConfirmBox() string {
 	return box
 }
 
-// overlay centres box on top of body, replacing the lines it covers.
+// overlay centres box on top of body using the lipgloss compositor, so the
+// body shows through on either side of the dialog.
 func (a *App) overlay(body, box string) string {
 	h := a.bodyHeight()
-	bodyLines := strings.Split(body, "\n")
-	for len(bodyLines) < h {
-		bodyLines = append(bodyLines, "")
-	}
-	boxLines := strings.Split(box, "\n")
-	bw := 0
-	for _, l := range boxLines {
-		bw = max(bw, lipgloss.Width(l))
-	}
-	top := max(0, (h-len(boxLines))/2)
+	bw, bh := lipgloss.Width(box), lipgloss.Height(box)
+	top := max(0, (h-bh)/2)
 	left := max(0, (a.width-bw)/2)
-	for i, bl := range boxLines {
-		if top+i >= len(bodyLines) {
-			break
-		}
-		bodyLines[top+i] = strings.Repeat(" ", left) + bl
-	}
-	return strings.Join(bodyLines[:h], "\n")
+	c := lipgloss.NewCanvas(a.width, h)
+	c.Compose(lipgloss.NewCompositor(
+		lipgloss.NewLayer(body).X(0).Y(0).Z(0),
+		lipgloss.NewLayer(box).X(left).Y(top).Z(1),
+	))
+	return c.Render()
 }
 
 func (a *App) renderHelp() string {
@@ -690,34 +683,15 @@ Press any key to go back.`
 	return h
 }
 
-func lipglossWidth(s string) int { return len([]rune(stripANSI(s))) }
+func lipglossWidth(s string) int { return ansi.StringWidth(s) }
 
-func stripANSI(s string) string {
-	var b strings.Builder
-	in := false
-	for _, r := range s {
-		switch {
-		case r == 0x1b:
-			in = true
-		case in && (r == 'm' || r == 'K' || r == 'H'):
-			in = false
-		case !in:
-			b.WriteRune(r)
-		}
-	}
-	return b.String()
-}
+func stripANSI(s string) string { return ansi.Strip(s) }
 
 func truncate(s string, w int) string {
-	if lipglossWidth(s) <= w {
-		return s
-	}
-	plain := stripANSI(s)
-	r := []rune(plain)
-	if w <= 1 {
+	if w <= 0 {
 		return ""
 	}
-	return string(r[:w-1]) + "…"
+	return ansi.Truncate(s, w, "…")
 }
 
 // rendered line helpers used by board and tree
