@@ -14,7 +14,7 @@ import (
 // covers and checks they are still drawn either side of it.
 func TestConfirmOverlayKeepsSurroundingCards(t *testing.T) {
 	a := newTestApp(t, 140, 30)
-	for i := 0; i < 6; i++ {
+	for i := 0; i < 20; i++ {
 		err := a.store.Mutate("", func(tx *store.Tx) error {
 			return tx.Create(&model.Ticket{Title: fmt.Sprintf("Filler %d", i), Priority: 3, Status: model.StatusTodo, Body: store.NewBody("", []string{"x"})})
 		})
@@ -35,7 +35,7 @@ func TestConfirmOverlayKeepsSurroundingCards(t *testing.T) {
 		if strings.Contains(line, "Mark T-3 done?") && !strings.Contains(line, "y = yes") {
 			found = true
 			// A TODO-column card sits left of the dialog on this row.
-			if !strings.Contains(line[:strings.Index(line, "Mark")], "│ ") {
+			if !strings.Contains(line[:strings.Index(line, "Mark")], "Filler") {
 				t.Errorf("card to the left of the dialog was erased: %q", line)
 			}
 		}

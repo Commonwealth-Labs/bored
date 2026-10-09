@@ -83,62 +83,45 @@ func (a *App) boardNav(k string) {
 
 func (a *App) renderBoard() string {
 	n := len(model.AllStatuses)
-	gap := 1
+	gap := 2
 	colW := (a.width - gap*(n-1)) / n
-	if colW < 14 {
-		colW = 14
+	if colW < 12 {
+		colW = 12
 	}
 	h := a.bodyHeight()
+	avail := h - 1 // minus header
 	var rendered []string
 	for ci, st := range model.AllStatuses {
 		cards := a.cols[ci]
-		head := fmt.Sprintf("%s (%d)", strings.ToUpper(string(st)), len(cards))
+		head := fmt.Sprintf("%s %d", strings.ToUpper(string(st)), len(cards))
 		if ci == a.col {
 			head = a.st.colHeadSel.Render(head)
 		} else {
 			head = a.st.colHead.Render(head)
 		}
 		lines := []string{truncate(head, colW)}
-		avail := h - 1
-		// Render cards and scroll so the selected one is visible.
-		var blocks []string
-		heights := make([]int, len(cards))
-		for i, t := range cards {
-			b := a.renderCard(t, colW, ci == a.col && i == a.row)
-			blocks = append(blocks, b)
-			heights[i] = lipgloss.Height(b)
-		}
 		off := a.colOff[ci]
-		if ci == a.col && len(cards) > 0 {
-			// ensure selected visible
-			for off > a.row {
-				off--
+		if ci == a.col {
+			if a.row < off {
+				off = a.row
 			}
-			for {
-				used := 0
-				for i := off; i <= a.row; i++ {
-					used += heights[i]
-				}
-				if used <= avail || off >= a.row {
-					break
-				}
-				off++
+			if a.row >= off+avail {
+				off = a.row - avail + 1
 			}
 		}
-		if off > len(cards) {
-			off = max(0, len(cards)-1)
+		if off > max(0, len(cards)-avail) {
+			off = max(0, len(cards)-avail)
+		}
+		if off < 0 {
+			off = 0
 		}
 		a.colOff[ci] = off
-		used := 0
-		for i := off; i < len(cards); i++ {
-			if used+heights[i] > avail {
-				if used < avail {
-					lines = append(lines, a.st.dim.Render(fmt.Sprintf("… %d more", len(cards)-i)))
-				}
+		for i := off; i < len(cards) && i < off+avail; i++ {
+			if i == off+avail-1 && len(cards) > off+avail {
+				lines = append(lines, a.st.dim.Render(fmt.Sprintf("… %d more", len(cards)-i)))
 				break
 			}
-			lines = append(lines, blocks[i])
-			used += heights[i]
+			lines = append(lines, a.renderCard(cards[i], colW, ci == a.col && i == a.row))
 		}
 		if len(cards) == 0 {
 			lines = append(lines, a.st.dim.Render("—"))

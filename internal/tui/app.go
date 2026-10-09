@@ -16,11 +16,11 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/huh/v2"
 	"charm.land/lipgloss/v2"
-	"github.com/charmbracelet/x/ansi"
 	"github.com/Commonwealth-Labs/bored/internal/edit"
 	"github.com/Commonwealth-Labs/bored/internal/model"
 	"github.com/Commonwealth-Labs/bored/internal/render"
 	"github.com/Commonwealth-Labs/bored/internal/store"
+	"github.com/charmbracelet/x/ansi"
 )
 
 type viewKind int
@@ -319,6 +319,10 @@ func (a *App) current() *model.Ticket {
 func (a *App) updateNav(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	k := msg.String()
 	switch k {
+	case "j", "k", "h", "l", "up", "down", "left", "right", "g", "G":
+		a.status = ""
+	}
+	switch k {
 	case "q":
 		return a, tea.Quit
 	case "?":
@@ -604,7 +608,7 @@ func (a *App) renderTitle() string {
 }
 
 func (a *App) renderStatus() string {
-	line1 := ""
+	var line1 string
 	switch a.mode {
 	case modePrompt:
 		label := "filter: "
@@ -614,29 +618,33 @@ func (a *App) renderStatus() string {
 		line1 = a.st.promptLabel.Render(label) + a.input.View()
 	case modeConfirm:
 		line1 = a.st.promptLabel.Render(a.confirmMsg) + a.st.dim.Render("   y = yes, any other key = no")
+	case modeForm, modeHelp:
 	default:
-		if a.status != "" {
-			if a.statErr {
-				line1 = a.st.errText.Render(a.status)
-			} else {
-				line1 = a.st.ok.Render(a.status)
-			}
+		line1 = a.details(a.current())
+	}
+	var line2 string
+	switch {
+	case a.status != "" && a.statErr:
+		line2 = a.st.errText.Render(a.status)
+	case a.status != "":
+		line2 = a.st.ok.Render(a.status)
+	default:
+		var hints string
+		switch a.mode {
+		case modeDetail:
+			hints = "j/k scroll  [ ] move  c claim  d done  m log  e edit  esc back"
+		case modeForm:
+			hints = "tab/shift+tab fields  enter next  esc cancel"
+		case modePrompt:
+			hints = "enter apply  esc cancel"
+		case modeConfirm:
+			hints = "y / enter  confirm      n / esc  cancel"
+		default:
+			hints = "j/k/h/l move  enter open  t tree  [ ] move  c claim  d done  n new  m log  e edit  / filter  p root  ? help  q quit"
 		}
+		line2 = a.st.help.Render(hints)
 	}
-	var hints string
-	switch a.mode {
-	case modeDetail:
-		hints = "j/k scroll  [ ] move  c claim  d done  m log  e edit  esc back"
-	case modeForm:
-		hints = "tab/shift+tab fields  enter next  esc cancel"
-	case modePrompt:
-		hints = "enter apply  esc cancel"
-	case modeConfirm:
-		hints = "y / enter  confirm      n / esc  cancel"
-	default:
-		hints = "j/k/h/l move  enter open  t tree/board  [ ] move  c claim  d done  n new  m log  e edit  / filter  p root  r reload  ? help  q quit"
-	}
-	return truncate(line1, a.width) + "\n" + a.st.help.Render(truncate(hints, a.width))
+	return truncate(line1, a.width) + "\n" + truncate(line2, a.width)
 }
 
 // renderConfirmBox draws the yes/no dialog.
@@ -704,32 +712,49 @@ func truncate(s string, w int) string {
 	return ansi.Truncate(s, w, "…")
 }
 
-// rendered line helpers used by board and tree
+// renderCard is one line: id and title. Everything else lives in the
+// details line at the bottom for the selected card.
 func (a *App) renderCard(t *model.Ticket, width int, selected bool) string {
-	where := render.Where(a.ix, t)
-	head := a.st.id.Render(t.ID) + a.st.dim.Render(fmt.Sprintf("  P%d", t.Priority))
-	if where != "" {
-		head += a.st.dim.Render("  " + where)
+	title := t.Title
+	if a.ix.IsBlocked(t.ID) {
+		title = a.st.blocked.Render(title)
+	}
+	line := truncate(a.st.id.Render(t.ID)+"  "+title, width)
+	if selected {
+		return a.st.treeSel.Width(width).Render(line)
+	}
+	return line
+}
+
+// details is the one-line summary of the selected ticket for the status area.
+func (a *App) details(t *model.Ticket) string {
+	if t == nil {
+		return ""
+	}
+	parts := []string{a.st.id.Render(t.ID), fmt.Sprintf("P%d", t.Priority), string(t.Status)}
+	if w := render.Where(a.ix, t); w != "" {
+		parts = append(parts, w)
 	}
 	if t.Assignee != "" {
-		head += a.st.assignee.Render("  " + t.Assignee)
+		parts = append(parts, a.st.assignee.Render(t.Assignee))
 	}
-	lines := []string{head, wrap(t.Title, width-4)}
-	var badges []string
 	if d, n := store.CountAC(t.Body); n > 0 {
-		badges = append(badges, a.st.badge.Render(fmt.Sprintf("ac %d/%d", d, n)))
+		parts = append(parts, a.st.badge.Render(fmt.Sprintf("ac %d/%d", d, n)))
+	}
+	if d, n := a.ix.Progress(t.ID); n > 0 {
+		parts = append(parts, a.st.badge.Render(fmt.Sprintf("children %d/%d", d, n)))
 	}
 	if bl := a.ix.BlockedBy(t.ID); len(bl) > 0 {
-		badges = append(badges, a.st.blocked.Render("blocked by "+bl[0].ID))
+		ids := make([]string, len(bl))
+		for i, b := range bl {
+			ids[i] = b.ID
+		}
+		parts = append(parts, a.st.blocked.Render("blocked by "+strings.Join(ids, ", ")))
 	}
-	if len(badges) > 0 {
-		lines = append(lines, strings.Join(badges, " "))
+	if len(t.Labels) > 0 {
+		parts = append(parts, a.st.dim.Render(strings.Join(t.Labels, ", ")))
 	}
-	style := a.st.card
-	if selected {
-		style = a.st.cardSel
-	}
-	return style.Width(width - 2).Render(strings.Join(lines, "\n"))
+	return strings.Join(parts, a.st.dim.Render("  ·  "))
 }
 
 func wrap(s string, w int) string {

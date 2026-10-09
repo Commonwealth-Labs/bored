@@ -145,9 +145,12 @@ about $0.70, a `/bored-review` that runs the test suite about $1.00.
 `bored` with no arguments opens the interactive board when stdout is a
 terminal (otherwise it prints the static board, so it is safe in scripts).
 
-Two views. The **board** shows workable tickets in five columns; anything
-with open children is a container and only appears in the **tree** view,
-with a done/total count, until its children are done. Press `t` to switch.
+Two views. The **board** shows workable tickets in five columns, one line
+per ticket (id and title; blocked ones in red). The line at the bottom
+describes the selected ticket: priority, where, assignee, criteria,
+blockers. Anything with open children is a container and only appears in
+the **tree** view, with a done/total count, until its children are done.
+Press `t` to switch.
 
 ```
 j/k/h/l  move          enter  open the ticket       t    board / tree

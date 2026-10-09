@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"regexp"
 	"strings"
 	"testing"
 
@@ -106,15 +107,24 @@ func plain(a *App) string { return stripANSI(a.View().Content) }
 func TestBoardRendersAndHidesContainers(t *testing.T) {
 	a := newTestApp(t, 120, 30)
 	v := plain(a)
-	for _, want := range []string{"BACKLOG (1)", "TODO (2)", "T-3", "T-4", "T-5", "Decide IdP", "ac 0/1"} {
+	for _, want := range []string{"BACKLOG 1", "TODO 2", "T-3  Decide IdP", "T-4  Add OAuth login", "T-5  Loose idea"} {
 		if !strings.Contains(v, want) {
 			t.Errorf("board missing %q:\n%s", want, v)
 		}
 	}
-	for _, hidden := range []string{"T-1", "T-2"} {
-		if strings.Contains(v, "│ "+hidden+" ") {
-			t.Errorf("container %s should be hidden:\n%s", hidden, v)
-		}
+	cardLine := regexp.MustCompile(`(^|\s)(T-1|T-2)  [A-Za-z]`)
+	if cardLine.MatchString(v) {
+		t.Errorf("containers should not appear as cards:\n%s", v)
+	}
+	// Details line describes the selected card (T-5 in backlog).
+	if !strings.Contains(v, "T-5  ·  P4  ·  backlog") {
+		t.Errorf("details line missing:\n%s", v)
+	}
+	// Move to T-4 and the details line should show its AC count and root.
+	drive(t, a, key("l"))
+	drive(t, a, key("j"))
+	if v := plain(a); !strings.Contains(v, "ac 0/2") || !strings.Contains(v, "·  T-1  ·") {
+		t.Errorf("details for T-4 missing:\n%s", v)
 	}
 }
 
@@ -212,7 +222,7 @@ func TestFilterAndRootCycle(t *testing.T) {
 	}
 	drive(t, a, key("enter"))
 	v := plain(a)
-	if !strings.Contains(v, "T-4") || strings.Contains(v, "T-3  ") {
+	if !strings.Contains(v, "T-4  Add OAuth login") || strings.Contains(v, "T-3  Decide") {
 		t.Errorf("filter should keep only T-4:\n%s", v)
 	}
 	drive(t, a, key("esc"))
