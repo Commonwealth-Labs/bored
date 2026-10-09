@@ -92,6 +92,7 @@ type App struct {
 	status   string
 	statErr  bool
 	prevMode mode
+	followID string // after [ or ], put the cursor on this ticket wherever it landed
 }
 
 // Run starts the program.
@@ -197,6 +198,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a, nil
 	case mutationDoneMsg:
 		if msg.err != nil {
+			a.followID = ""
 			a.setStatus(msg.err.Error(), true)
 			return a, nil
 		}
@@ -398,6 +400,7 @@ func (a *App) moveBy(t *model.Ticket, delta int) tea.Cmd {
 	}
 	to := model.AllStatuses[i]
 	id, actor := t.ID, a.actor
+	a.followID = id
 	do := a.mutate(fmt.Sprintf("bored: move %s %s->%s (%s)", id, t.Status, to, actor), func(tx *store.Tx) error {
 		cur, err := tx.Resolve(id)
 		if err != nil {
@@ -488,6 +491,7 @@ func (a *App) updateConfirm(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return a, cmd
 	default:
 		a.confirmMsg, a.confirmCmd = "", nil
+		a.followID = "" // the move was cancelled; nothing to follow
 		a.mode = a.returnMode()
 		return a, nil
 	}

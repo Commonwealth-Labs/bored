@@ -214,14 +214,18 @@ func TestClaimMoveAndDoneViaKeys(t *testing.T) {
 	if a.current().ID != "T-3" {
 		t.Fatalf("expected T-3 in doing, got %v", a.current())
 	}
-	drive(t, a, key("]")) // doing -> review
+	drive(t, a, key("]")) // doing -> review; cursor follows
 	if a.ix.Get("T-3").Status != model.StatusReview {
 		t.Fatalf("move right failed: %s", a.status)
 	}
-	if a.col != 2 {
-		t.Fatalf("cursor should stay in the doing column, got col=%d", a.col)
+	if a.col != 3 || a.current() == nil || a.current().ID != "T-3" {
+		t.Fatalf("cursor should follow T-3 into review, got col=%d cur=%v", a.col, a.current())
 	}
-	drive(t, a, key("l")) // review column: T-3
+	drive(t, a, key("[")) // back to doing; follows
+	if a.col != 2 || a.current().ID != "T-3" {
+		t.Fatalf("cursor should follow T-3 back to doing, got col=%d", a.col)
+	}
+	drive(t, a, key("]"))
 	drive(t, a, key("]")) // review -> done asks
 	if a.mode != modeConfirm {
 		t.Fatal("moving to done should ask for confirmation")
@@ -349,8 +353,7 @@ func TestConfirmDialogIsVisible(t *testing.T) {
 	drive(t, a, key("l"))
 	drive(t, a, key("c")) // T-3 -> doing; cursor stays in todo
 	drive(t, a, key("l")) // doing: T-3
-	drive(t, a, key("]")) // -> review; cursor stays in doing
-	drive(t, a, key("l")) // review: T-3
+	drive(t, a, key("]")) // -> review; cursor follows
 	drive(t, a, key("d"))
 	if a.mode != modeConfirm {
 		t.Fatal("d from review should ask")
@@ -371,7 +374,6 @@ func TestConfirmFromDetailKeepsDetailVisible(t *testing.T) {
 	drive(t, a, key("c"))
 	drive(t, a, key("l"))
 	drive(t, a, key("]"))
-	drive(t, a, key("l"))
 	drive(t, a, key("enter"))
 	if a.mode != modeDetail {
 		t.Fatal("expected detail")

@@ -28,7 +28,6 @@ func TestConfirmOverlayKeepsSurroundingCards(t *testing.T) {
 	drive(t, a, key("c"))
 	drive(t, a, key("l"))
 	drive(t, a, key("]"))
-	drive(t, a, key("l"))
 	drive(t, a, key("d"))
 	v := plain(a)
 	t.Logf("\n%s", v)
