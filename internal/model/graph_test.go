@@ -293,3 +293,27 @@ func TestStuckLabel(t *testing.T) {
 		t.Error("LastLogLine on empty log")
 	}
 }
+
+
+func TestCascadeRespectsManualPlacement(t *testing.T) {
+	now := time.Now()
+	// P-1 has no AC but a human moved it to todo while it had no open children;
+	// P-2 is its child, now finishing.
+	ts := []*Ticket{mk("P-1", "", StatusTodo, 3), mk("P-2", "P-1", StatusReview, 2)}
+	ix := NewIndex("P", ts)
+	ApplyMove(ix.Get("P-2"), StatusDone)
+	if changed := CascadeDone(ix, ix.Get("P-2"), "tester", now); len(changed) != 0 {
+		t.Fatalf("manually placed parent should be left alone, changed=%v", ids(changed))
+	}
+	if ix.Get("P-1").Status != StatusTodo || !ix.Workable("P-1") {
+		t.Errorf("P-1 should remain a workable todo, got %s", ix.Get("P-1").Status)
+	}
+	// Same shape but the parent was never touched (backlog): it closes.
+	ts = []*Ticket{mk("Q-1", "", StatusBacklog, 3), mk("Q-2", "Q-1", StatusReview, 2)}
+	ix = NewIndex("Q", ts)
+	ApplyMove(ix.Get("Q-2"), StatusDone)
+	CascadeDone(ix, ix.Get("Q-2"), "tester", now)
+	if ix.Get("Q-1").Status != StatusDone {
+		t.Errorf("untouched grouping parent should auto-close, got %s", ix.Get("Q-1").Status)
+	}
+}

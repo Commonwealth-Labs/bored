@@ -79,25 +79,25 @@ func (ix *Index) CanDone(t *Ticket, force bool) error {
 }
 
 // CascadeDone runs after t was marked done. Walking up the parents: a parent
-// whose children are now all done is closed automatically if it has no
-// acceptance criteria of its own (it was only a grouping), or becomes a todo
-// ticket if it has (its own work is now unblocked). Returns the parents it
-// changed, each with a log line appended.
+// whose children are now all done is handled by what it says about itself.
+// Still in backlog, it was never touched: it closes automatically if it has
+// no acceptance criteria (it was only a grouping) or becomes todo if it has.
+// In todo, doing or review, a human put it there while it had no open
+// children, so it stays where it is and is simply workable again. Returns
+// the parents it changed, each with a log line appended.
 func CascadeDone(ix *Index, t *Ticket, actor string, now time.Time) []*Ticket {
 	var changed []*Ticket
 	for p := ix.Get(t.Parent); p != nil; p = ix.Get(p.Parent) {
 		if ix.HasOpenChildren(p.ID) {
 			break
 		}
-		if HasOwnWork(p) {
-			if p.Status == StatusBacklog || p.Status == StatusDoing || p.Status == StatusReview {
-				ApplyMove(p, StatusTodo)
-				p.Body = AppendLog(p.Body, now.Local(), actor, "all children done; ready for its own work")
-				changed = append(changed, p)
-			}
-			break
+		if p.Status != StatusBacklog {
+			break // done already, or deliberately placed by a human
 		}
-		if p.Status == StatusDone {
+		if HasOwnWork(p) {
+			ApplyMove(p, StatusTodo)
+			p.Body = AppendLog(p.Body, now.Local(), actor, "all children done; ready for its own work")
+			changed = append(changed, p)
 			break
 		}
 		ApplyMove(p, StatusDone)

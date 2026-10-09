@@ -56,10 +56,14 @@ A ticket with children is a container. While any child is open:
   status is ignored and `move`/`done` on it are refused.
 - it stays off the board; the tree shows it with a done/total count.
 
-When the last child is done, the parent either closes automatically (if it
-has no acceptance criteria of its own, it was only a grouping, and the same
-check runs on its parent) or becomes a todo ticket on the board (if it has
-criteria, that is its own work, now unblocked). Both leave a log line.
+When the last child is done, what happens to the parent depends on what it
+says about itself. Still in backlog, it was never touched: it closes
+automatically if it has no acceptance criteria (it was only a grouping, and
+the same check runs on its parent) or becomes a todo ticket on the board if
+it has (that is its own work, now unblocked). Both leave a log line. If you
+had moved it to todo, doing or review yourself, which is only possible while
+it has no open children, it stays where you put it and is simply workable
+again; closing it is your call.
 
 ## Stuck tickets
 
