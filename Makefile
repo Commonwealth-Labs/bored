@@ -1,10 +1,16 @@
-.PHONY: build install test vet fmt smoke clean
+.PHONY: build install install-skills test vet fmt smoke clean
+
+VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
+LDFLAGS := -ldflags "-X github.com/Commonwealth-Labs/bored/internal/cli.Version=$(VERSION)"
 
 build:
-	go build -o bored ./cmd/bored
+	go build $(LDFLAGS) -o bored ./cmd/bored
 
 install:
-	go install ./cmd/bored
+	go install $(LDFLAGS) ./cmd/bored
+
+install-skills: install
+	bored install-skills --force
 
 test:
 	go test ./...
