@@ -69,5 +69,9 @@ Never run `bored done`. Marking work done is the human's call.
 ## Blocked or failing
 
 If you cannot finish: `bored log <id> "blocked: <why, and what would unblock it>" --as claude`,
-then release it: `bored move <id> todo -m "released: <why>" --as claude`. If a
-specific ticket must land first, `bored dep add <id> <blocker>`.
+then release it: `bored move <id> todo -m "released: <why>" --as claude`.
+
+- If a specific ticket must land first, `bored dep add <id> <blocker>`; the
+  board will hold it until then.
+- Otherwise mark it for a human: `bored label add <id> stuck`. No agent will
+  be offered it again until someone reads the log and removes the label.

@@ -80,6 +80,16 @@ b claim "$K" --as claude >/dev/null && b move "$K" review >/dev/null && b done "
 b board | grep -q "$C" && pass "workable container shows on board" || bad "workable container on board"
 b claim "$C" >/dev/null && b move "$C" review >/dev/null && expect_exit 0 "done container with own work" "$BIN" done "$C"
 [ "$(b show iam --json | jq -r .status)" = "done" ] && pass "root auto-done again after own-work chunk" || bad "root after own-work chunk: $(b show iam --json | jq -r .status)"
+# Stuck label: skipped by next/ready, claim refused, --force clears it.
+S=$(b new "Gave up on this" --parent iam --ac "x")
+b label add "$S" stuck >/dev/null
+expect_exit 4 "label add twice" "$BIN" label add "$S" stuck
+b ready --json 2>/dev/null | grep -q "$S" && bad "ready offers stuck ticket" || pass "ready skips stuck ticket"
+expect_exit 4 "claim stuck" "$BIN" claim "$S" --as claude
+b board | grep -q "(1 stuck)" && pass "board header counts stuck" || bad "board header stuck count"
+expect_exit 0 "claim stuck --force" "$BIN" claim "$S" --as claude --force
+b show "$S" --json | jq -e '.labels | index("stuck") == null' >/dev/null && pass "force claim clears stuck" || bad "stuck label not cleared"
+b move "$S" review >/dev/null && b done "$S" >/dev/null
 expect_exit 5 "next with nothing ready" "$BIN" next --under 2 --as nobody
 expect_exit 3 "show unknown" "$BIN" show 99
 expect_exit 2 "bad status" "$BIN" move 1 nowhere

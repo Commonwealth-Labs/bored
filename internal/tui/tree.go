@@ -145,6 +145,9 @@ func (a *App) renderTree() string {
 		if a.ix.IsBlocked(t.ID) {
 			line += style(a.st.blocked, "  blocked")
 		}
+		if t.IsStuck() {
+			line += style(a.st.badge, "  stuck")
+		}
 		line = truncate(line, a.width)
 		if sel {
 			line = a.st.treeSel.Width(a.width).Render(line)

@@ -344,6 +344,15 @@ func newPrimeCmd() *cobra.Command {
 			if n := len(cols[model.StatusBacklog]); n > 0 {
 				sb.WriteString(fmt.Sprintf("backlog: %d unrefined ticket(s); see bored list --status backlog\n", n))
 			}
+			var stuck []string
+			for _, t := range ix.Filter(sc) {
+				if t.IsStuck() && ix.Status(t.ID) != model.StatusDone {
+					stuck = append(stuck, t.ID)
+				}
+			}
+			if len(stuck) > 0 {
+				sb.WriteString(fmt.Sprintf("stuck (need a human before any agent retries): %s\n", strings.Join(stuck, ", ")))
+			}
 			if t, reason := ix.Next(sc, who, time.Now()); t != nil {
 				sb.WriteString(fmt.Sprintf("Next for %s: %s — %s\n", who, t.ID, reason))
 			} else {

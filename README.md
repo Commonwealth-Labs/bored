@@ -61,6 +61,16 @@ has no acceptance criteria of its own, it was only a grouping, and the same
 check runs on its parent) or becomes a todo ticket on the board (if it has
 criteria, that is its own work, now unblocked). Both leave a log line.
 
+## Stuck tickets
+
+When an agent gives up on a ticket, or a headless session ends without
+handing over, the ticket goes back to todo with a `stuck` label and the
+reason in its log. Stuck tickets are skipped by `next` and `ready`, so no
+agent retries one until a human has looked. On the board the title is
+amber, the column header counts them, and the details line shows the reason.
+Clear it with `bored label rm <id> stuck`, or `bored claim <id> --force`,
+which clears it because claiming means you've read it.
+
 ## Everyday commands
 
 ```

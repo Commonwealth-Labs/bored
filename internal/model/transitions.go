@@ -24,12 +24,17 @@ func (ix *Index) CanClaim(t *Ticket, actor string, force bool) error {
 		if b := ix.BlockedBy(t.ID); len(b) > 0 {
 			return fmt.Errorf("%w: %s is blocked by %s", ErrConflict, t.ID, b[0].ID)
 		}
+		if t.IsStuck() {
+			return fmt.Errorf("%w: %s is stuck (an agent gave up: %s); read the log, then bored label rm %s stuck, or claim --force", ErrConflict, t.ID, LastLogLine(t.Body), t.ID)
+		}
 	}
 	return nil
 }
 
-// Claim applies todo -> doing for actor.
+// Claim applies todo -> doing for actor. Claiming clears the stuck label:
+// whoever claims has looked.
 func Claim(t *Ticket, actor string, now time.Time) {
+	t.RemoveLabel(LabelStuck)
 	t.Status = StatusDoing
 	t.Assignee = actor
 	ts := now

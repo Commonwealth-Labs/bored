@@ -232,6 +232,47 @@ func newACCmd() *cobra.Command {
 	return c
 }
 
+func newLabelCmd() *cobra.Command {
+	c := &cobra.Command{Use: "label", Short: "Add or remove labels (e.g. stuck)"}
+	add := &cobra.Command{
+		Use:   "add <id> <label>",
+		Short: "Add a label",
+		Args:  exactArgs(2, "label add <id> <label>"),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			l := strings.TrimSpace(args[1])
+			if l == "" {
+				return fmt.Errorf("%w: empty label", model.ErrUsage)
+			}
+			return mutateOne(args[0], func(tx *store.Tx, t *model.Ticket) (string, error) {
+				if !t.AddLabel(l) {
+					return "", fmt.Errorf("%w: %s already has label %q", model.ErrConflict, t.ID, l)
+				}
+				return fmt.Sprintf("bored: label %s +%s", t.ID, l), nil
+			}, func(t *model.Ticket) string {
+				return fmt.Sprintf("%s labels: %s\n", t.ID, strings.Join(t.Labels, ", "))
+			})
+		},
+	}
+	rm := &cobra.Command{
+		Use:   "rm <id> <label>",
+		Short: "Remove a label",
+		Args:  exactArgs(2, "label rm <id> <label>"),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			l := strings.TrimSpace(args[1])
+			return mutateOne(args[0], func(tx *store.Tx, t *model.Ticket) (string, error) {
+				if !t.RemoveLabel(l) {
+					return "", fmt.Errorf("%w: %s has no label %q", model.ErrNotFound, t.ID, l)
+				}
+				return fmt.Sprintf("bored: label %s -%s", t.ID, l), nil
+			}, func(t *model.Ticket) string {
+				return fmt.Sprintf("%s labels: %s\n", t.ID, strings.Join(t.Labels, ", "))
+			})
+		},
+	}
+	c.AddCommand(add, rm)
+	return c
+}
+
 func newDepCmd() *cobra.Command {
 	c := &cobra.Command{Use: "dep", Short: "Manage dependencies (blockers)"}
 	add := &cobra.Command{

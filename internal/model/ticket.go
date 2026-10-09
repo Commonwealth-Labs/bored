@@ -153,6 +153,37 @@ func (t *Ticket) Validate() error {
 	return nil
 }
 
+// LabelStuck marks a ticket an agent gave up on; agents skip it until a
+// human removes the label.
+const LabelStuck = "stuck"
+
+// IsStuck reports whether the ticket carries the stuck label.
+func (t *Ticket) IsStuck() bool { return t.HasLabel(LabelStuck) }
+
+// AddLabel adds l if missing; reports whether it changed anything.
+func (t *Ticket) AddLabel(l string) bool {
+	if t.HasLabel(l) {
+		return false
+	}
+	t.Labels = append(t.Labels, l)
+	return true
+}
+
+// RemoveLabel removes l; reports whether it was present.
+func (t *Ticket) RemoveLabel(l string) bool {
+	kept := t.Labels[:0]
+	found := false
+	for _, x := range t.Labels {
+		if x == l {
+			found = true
+			continue
+		}
+		kept = append(kept, x)
+	}
+	t.Labels = kept
+	return found
+}
+
 // HasLabel reports whether the ticket carries label l.
 func (t *Ticket) HasLabel(l string) bool {
 	for _, x := range t.Labels {

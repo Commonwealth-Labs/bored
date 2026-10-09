@@ -203,3 +203,25 @@ func SetSection(body, heading, content string) string {
 	out = append(out, lines[end:]...)
 	return strings.Join(out, "\n") + "\n"
 }
+
+// LastLogLine returns the text of the newest log entry without its timestamp
+// and actor, or "" if there is none.
+func LastLogLine(body string) string {
+	lines := strings.Split(body, "\n")
+	start, end := sectionBounds(lines, SecLog)
+	if start < 0 {
+		return ""
+	}
+	for i := end - 1; i >= start; i-- {
+		l := strings.TrimSpace(lines[i])
+		if !strings.HasPrefix(l, "- ") {
+			continue
+		}
+		l = strings.TrimPrefix(l, "- ")
+		if i := strings.Index(l, ": "); i >= 0 && len(l) > 16 && l[4] == '-' {
+			return l[i+2:]
+		}
+		return l
+	}
+	return ""
+}

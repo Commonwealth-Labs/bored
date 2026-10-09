@@ -458,3 +458,31 @@ func TestFormCompletesThroughFollowUpMessage(t *testing.T) {
 		t.Fatalf("ticket not created after form completion; status=%q", a.status)
 	}
 }
+
+func TestStuckShowsOnBoard(t *testing.T) {
+	a := newTestApp(t, 120, 30)
+	err := a.store.Mutate("", func(tx *store.Tx) error {
+		tk, _ := tx.Resolve("T-4")
+		tk.AddLabel(model.LabelStuck)
+		tk.Body = model.AppendLog(tk.Body, time.Now(), "claude", "released: tests would not run")
+		tx.Put(tk)
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	drive(t, a, a.load()())
+	v := plain(a)
+	if !strings.Contains(v, "TODO 2 (1 stuck)") {
+		t.Errorf("header should count stuck tickets:\n%s", v)
+	}
+	drive(t, a, key("l"))
+	drive(t, a, key("j")) // T-4
+	if v := plain(a); !strings.Contains(v, "stuck: released: tests would not run") {
+		t.Errorf("details line should show the stuck reason:\n%s", v)
+	}
+	drive(t, a, key("t"))
+	if v := plain(a); !strings.Contains(v, "Add OAuth login  stuck") {
+		t.Errorf("tree should mark stuck:\n%s", v)
+	}
+}

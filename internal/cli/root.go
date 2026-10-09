@@ -107,7 +107,7 @@ Exit codes: 0 ok, 1 failure, 2 usage, 3 not found, 4 conflict, 5 nothing to do.`
 	root.AddCommand(
 		newInitCmd(), newRepoCmd(), newNewCmd(), newSetCmd(), newListCmd(), newTreeCmd(), newShowCmd(),
 		newMoveCmd(), newClaimCmd(), newDoneCmd(), newNextCmd(), newReadyCmd(), newLogCmd(), newACCmd(),
-		newEditCmd(), newDepCmd(), newBoardCmd(), newPrimeCmd(), newSyncCmd(), newInstallSkillsCmd(), newRunCmd(), newVersionCmd(),
+		newEditCmd(), newDepCmd(), newLabelCmd(), newBoardCmd(), newPrimeCmd(), newSyncCmd(), newInstallSkillsCmd(), newRunCmd(), newVersionCmd(),
 	)
 	return root
 }

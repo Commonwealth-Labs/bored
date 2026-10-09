@@ -102,6 +102,9 @@ func (a *App) renderBoard() string {
 	for ci, st := range model.AllStatuses {
 		cards := a.cols[ci]
 		head := fmt.Sprintf("%s %d", strings.ToUpper(string(st)), len(cards))
+		if n := render.StuckCount(cards); n > 0 {
+			head += fmt.Sprintf(" (%d stuck)", n)
+		}
 		if ci == a.col {
 			head = a.st.colHeadSel.Render(head)
 		} else {

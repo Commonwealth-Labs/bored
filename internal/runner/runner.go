@@ -279,6 +279,7 @@ func release(s *store.Store, id, actor, note string) {
 			return err
 		}
 		model.ApplyMove(cur, model.StatusTodo)
+		cur.AddLabel(model.LabelStuck)
 		cur.Body = model.AppendLog(cur.Body, tx.Now().Local(), actor, note)
 		tx.Put(cur)
 		return nil

@@ -150,3 +150,19 @@ func TestContainerBecomesWorkable(t *testing.T) {
 		t.Errorf("tree progress:\n%s", tree)
 	}
 }
+
+func TestLabelCommands(t *testing.T) {
+	r := newRun(t)
+	r.ok("new", "Leaf", "--ac", "x")
+	r.ok("label", "add", "1", "stuck")
+	r.code(4, "label", "add", "1", "stuck")
+	r.code(5, "ready")
+	r.code(4, "claim", "1")
+	r.ok("label", "rm", "1", "stuck")
+	r.code(3, "label", "rm", "1", "stuck")
+	r.ok("claim", "1")
+	v := r.jsonOf("show", "1")
+	if v["status"] != "doing" {
+		t.Errorf("claim after unstick: %v", v["status"])
+	}
+}

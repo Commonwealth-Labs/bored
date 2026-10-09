@@ -722,8 +722,11 @@ func (a *App) renderCard(t *model.Ticket, width int, selected bool) string {
 		return a.st.treeSel.Width(width).Render(truncate(plain, width))
 	}
 	title := t.Title
-	if a.ix.IsBlocked(t.ID) {
+	switch {
+	case a.ix.IsBlocked(t.ID):
 		title = a.st.blocked.Render(title)
+	case t.IsStuck():
+		title = a.st.badge.Render(title)
 	}
 	return truncate(a.st.id.Render(t.ID)+"  "+title, width)
 }
@@ -753,8 +756,11 @@ func (a *App) details(t *model.Ticket) string {
 		}
 		parts = append(parts, a.st.blocked.Render("blocked by "+strings.Join(ids, ", ")))
 	}
-	if len(t.Labels) > 0 {
-		parts = append(parts, a.st.dim.Render(strings.Join(t.Labels, ", ")))
+	if t.IsStuck() {
+		parts = append(parts, a.st.badge.Render("stuck: "+model.LastLogLine(t.Body)))
+	}
+	if labels := labelsExcept(t.Labels, model.LabelStuck); len(labels) > 0 {
+		parts = append(parts, a.st.dim.Render(strings.Join(labels, ", ")))
 	}
 	return strings.Join(parts, a.st.dim.Render("  ·  "))
 }
@@ -779,4 +785,14 @@ func wrap(s string, w int) string {
 		out = append(out, line)
 	}
 	return strings.Join(out, "\n")
+}
+
+func labelsExcept(labels []string, skip string) []string {
+	var out []string
+	for _, l := range labels {
+		if l != skip {
+			out = append(out, l)
+		}
+	}
+	return out
 }

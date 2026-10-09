@@ -68,7 +68,21 @@ func Badges(ix *model.Index, t *model.Ticket) []string {
 		}
 		b = append(b, "blocked by "+strings.Join(ids, ","))
 	}
+	if t.IsStuck() {
+		b = append(b, "stuck")
+	}
 	return b
+}
+
+// StuckCount counts stuck tickets in a column.
+func StuckCount(ts []*model.Ticket) int {
+	n := 0
+	for _, t := range ts {
+		if t.IsStuck() {
+			n++
+		}
+	}
+	return n
 }
 
 // Where renders "root › repo" for a card.
@@ -145,7 +159,11 @@ func Board(ix *model.Index, sc model.Scope, o BoardOpts) string {
 	var sb strings.Builder
 	for _, st := range model.AllStatuses {
 		ts := cols[st]
-		sb.WriteString(fmt.Sprintf("%s (%d)\n", strings.ToUpper(string(st)), len(ts)))
+		head := fmt.Sprintf("%s (%d)", strings.ToUpper(string(st)), len(ts))
+		if n := StuckCount(ts); n > 0 {
+			head += fmt.Sprintf(" (%d stuck)", n)
+		}
+		sb.WriteString(head + "\n")
 		for _, t := range ts {
 			mark := ""
 			if o.MarkRepo != "" && t.Repo == o.MarkRepo {
@@ -187,6 +205,9 @@ func writeNode(sb *strings.Builder, ix *model.Index, t *model.Ticket, prefix, br
 	}
 	if ix.IsBlocked(t.ID) {
 		line += "  [blocked]"
+	}
+	if t.IsStuck() {
+		line += "  [stuck]"
 	}
 	kids := ix.Children(t.ID)
 	cut := maxDepth > 0 && level >= maxDepth && len(kids) > 0

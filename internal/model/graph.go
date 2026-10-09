@@ -394,7 +394,7 @@ func (ix *Index) Ready(sc Scope, actor string) []*Ticket {
 		if ix.Status(t.ID) != StatusTodo || !ix.InScope(t, sc) {
 			continue
 		}
-		if !ix.Workable(t.ID) || ix.IsBlocked(t.ID) {
+		if !ix.Workable(t.ID) || ix.IsBlocked(t.ID) || t.IsStuck() {
 			continue
 		}
 		if t.Assignee != "" && t.Assignee != actor {

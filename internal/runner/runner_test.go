@@ -132,19 +132,25 @@ func TestDyingSessionIsReleasedAndLoopStops(t *testing.T) {
 	id := newTicket(t, s, "Hard one", "")
 	o := opts(t, "die")
 	o.Max = 0
+	// One ticket: it is released as stuck, not offered again, and the loop ends cleanly.
 	res, err := runner.Run(s, o)
-	if !errors.Is(err, runner.ErrStoppedOnFailures) {
-		t.Fatalf("expected stop on failures, got err=%v res=%+v", err, res)
-	}
-	if len(res) != 2 || res[0].Outcome != runner.OutcomeRecover {
-		t.Fatalf("res=%+v", res)
+	if err != nil || len(res) != 1 || res[0].Outcome != runner.OutcomeRecover {
+		t.Fatalf("err=%v res=%+v", err, res)
 	}
 	tk, _ := s.Load(id)
-	if tk.Status != model.StatusTodo || tk.Assignee != "" {
-		t.Errorf("ticket should be released: %s %q", tk.Status, tk.Assignee)
+	if tk.Status != model.StatusTodo || tk.Assignee != "" || !tk.IsStuck() {
+		t.Errorf("ticket should be released and stuck: %s %q %v", tk.Status, tk.Assignee, tk.Labels)
 	}
 	if !strings.Contains(tk.Body, "runner: session ended without handover") {
 		t.Errorf("release not logged:\n%s", tk.Body)
+	}
+	// Two more dying tickets: the second consecutive failure stops the loop.
+	newTicket(t, s, "Hard two", "")
+	newTicket(t, s, "Hard three", "")
+	newTicket(t, s, "Never reached", "")
+	res, err = runner.Run(s, o)
+	if !errors.Is(err, runner.ErrStoppedOnFailures) || len(res) != 2 {
+		t.Fatalf("expected stop after two failures, got err=%v res=%+v", err, res)
 	}
 }
 
@@ -271,5 +277,24 @@ func TestReviewPassLogsVerdict(t *testing.T) {
 	}
 	if res[0].CostUSD < 0.03 {
 		t.Errorf("review cost not added: %v", res[0].CostUSD)
+	}
+}
+
+func TestRecoveredTicketIsMarkedStuck(t *testing.T) {
+	s := newStore(t)
+	id := newTicket(t, s, "Gives up", "")
+	o := opts(t, "die")
+	res, err := runner.Run(s, o)
+	if err != nil || len(res) != 1 || res[0].Outcome != runner.OutcomeRecover {
+		t.Fatalf("res=%+v err=%v", res, err)
+	}
+	tk, _ := s.Load(id)
+	if !tk.IsStuck() || tk.Status != model.StatusTodo {
+		t.Fatalf("ticket should be stuck todo: %+v", tk)
+	}
+	// A second run must not pick it up again.
+	_, err = runner.Run(s, opts(t, "success"))
+	if !errors.Is(err, runner.ErrNothingReady) {
+		t.Errorf("stuck ticket should not be offered: %v", err)
 	}
 }

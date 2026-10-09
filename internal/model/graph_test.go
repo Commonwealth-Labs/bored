@@ -261,3 +261,35 @@ func TestCascadeDone(t *testing.T) {
 		t.Fatalf("expected G-1 auto-done, changed=%v", ids(changed))
 	}
 }
+
+func TestStuckLabel(t *testing.T) {
+	ix := fixture()
+	tk := ix.Get("T-4")
+	tk.Body = AppendLog(tk.Body, time.Date(2026, 10, 9, 16, 0, 0, 0, time.UTC), "claude", "released: could not find the auth module")
+	if !tk.AddLabel(LabelStuck) || tk.AddLabel(LabelStuck) {
+		t.Error("AddLabel should report change once")
+	}
+	if got := ids(ix.Ready(Scope{}, "claude")); got != "T-3 " {
+		t.Errorf("ready should skip stuck T-4, got %q", got)
+	}
+	if n, _ := ix.Next(Scope{}, "claude", time.Now()); n == nil || n.ID != "T-3" {
+		t.Errorf("next should skip stuck T-4, got %v", n)
+	}
+	err := ix.CanClaim(tk, "claude", false)
+	if err == nil || !strings.Contains(err.Error(), "stuck") || !strings.Contains(err.Error(), "could not find the auth module") {
+		t.Errorf("claim on stuck should be refused with the reason: %v", err)
+	}
+	if err := ix.CanClaim(tk, "claude", true); err != nil {
+		t.Errorf("forced claim should pass: %v", err)
+	}
+	Claim(tk, "claude", time.Now())
+	if tk.IsStuck() {
+		t.Error("claiming should clear the stuck label")
+	}
+	if !tk.RemoveLabel("nope") == false {
+		t.Error("removing a missing label should report false")
+	}
+	if LastLogLine("## Log\n") != "" || LastLogLine("no log") != "" {
+		t.Error("LastLogLine on empty log")
+	}
+}
