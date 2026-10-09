@@ -77,6 +77,16 @@ func (a *App) updateForm(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		a.mode = a.returnMode()
 		return a, nil
 	}
+	return a, a.formUpdate(msg)
+}
+
+// formUpdate feeds any message to the form and reacts to its state. huh
+// completes a form via follow-up messages, not on the Enter key itself, so
+// this must run for every message while the form is open.
+func (a *App) formUpdate(msg tea.Msg) tea.Cmd {
+	if a.form == nil {
+		return nil
+	}
 	m, cmd := a.form.Update(msg)
 	if f, ok := m.(*huh.Form); ok {
 		a.form = f
@@ -85,14 +95,14 @@ func (a *App) updateForm(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case huh.StateAborted:
 		a.form = nil
 		a.mode = a.returnMode()
-		return a, nil
+		return nil
 	case huh.StateCompleted:
 		d := a.draft
 		a.form = nil
 		a.mode = a.returnMode()
-		return a, a.createFromDraft(d)
+		return a.createFromDraft(d)
 	}
-	return a, cmd
+	return cmd
 }
 
 func (a *App) createFromDraft(d draft) tea.Cmd {

@@ -174,11 +174,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			a.openDetail(a.detailID)
 		}
 		if a.form != nil {
-			m, cmd := a.form.Update(msg)
-			if f, ok := m.(*huh.Form); ok {
-				a.form = f
-			}
-			return a, cmd
+			return a, a.formUpdate(msg)
 		}
 		return a, nil
 	case ticketsLoadedMsg:
@@ -251,11 +247,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	}
 	if a.mode == modeForm && a.form != nil {
-		m, cmd := a.form.Update(msg)
-		if f, ok := m.(*huh.Form); ok {
-			a.form = f
-		}
-		return a, cmd
+		return a, a.formUpdate(msg)
 	}
 	return a, nil
 }

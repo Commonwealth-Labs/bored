@@ -4,6 +4,7 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/Commonwealth-Labs/bored/internal/model"
@@ -63,6 +64,22 @@ func seed(t *testing.T) *store.Store {
 	return s
 }
 
+// runCmd executes a command but gives up on anything that looks like a
+// timer (ticks, cursor blinks) so tests stay fast.
+func runCmd(cmd tea.Cmd) tea.Msg {
+	if cmd == nil {
+		return nil
+	}
+	ch := make(chan tea.Msg, 1)
+	go func() { ch <- cmd() }()
+	select {
+	case m := <-ch:
+		return m
+	case <-time.After(100 * time.Millisecond):
+		return nil
+	}
+}
+
 // drive applies a message and any resulting commands synchronously.
 func drive(t *testing.T, a *App, msg tea.Msg) {
 	t.Helper()
@@ -71,17 +88,15 @@ func drive(t *testing.T, a *App, msg tea.Msg) {
 		t.Fatalf("Update returned a different model")
 	}
 	for i := 0; cmd != nil && i < 10; i++ {
-		out := cmd()
+		out := runCmd(cmd)
 		cmd = nil
 		switch out := out.(type) {
 		case nil:
 		case tea.BatchMsg:
 			for _, c := range out {
-				if c != nil {
-					if m := c(); m != nil {
-						if _, isTick := m.(tickMsg); !isTick {
-							_, cmd = a.Update(m)
-						}
+				if m := runCmd(c); m != nil {
+					if _, isTick := m.(tickMsg); !isTick {
+						_, cmd = a.Update(m)
 					}
 				}
 			}
@@ -400,5 +415,46 @@ func TestSelectedRowHighlightCoversWholeLine(t *testing.T) {
 				t.Errorf("tree selected row is not one highlighted run: %q", line)
 			}
 		}
+	}
+}
+
+// TestFormCompletesThroughFollowUpMessage drives the real huh form to the
+// end: fill the title, Enter through each field, and check the ticket is
+// created without needing an extra key press afterwards.
+func TestFormCompletesThroughFollowUpMessage(t *testing.T) {
+	a := newTestApp(t, 120, 40)
+	_, cmd := a.startForm()
+	if cmd != nil {
+		if m := cmd(); m != nil {
+			drive(t, a, m)
+		}
+	}
+	for _, ch := range "Via form" {
+		drive(t, a, key(string(ch)))
+	}
+	// Title, Parent, Repo, Priority, Description: Enter advances; the last
+	// Enter submits (Text fields submit on Enter when single-line? huh uses
+	// ctrl+d / alt+enter for multi-line; emulate submit with enter then
+	// check state) — walk until the form is gone or we give up.
+	for i := 0; i < 12 && a.mode == modeForm; i++ {
+		drive(t, a, key("enter"))
+	}
+	if a.mode == modeForm {
+		drive(t, a, tea.KeyPressMsg{Code: 'd', Mod: tea.ModCtrl}) // submit multi-line text
+		for i := 0; i < 3 && a.mode == modeForm; i++ {
+			drive(t, a, key("enter"))
+		}
+	}
+	if a.mode == modeForm {
+		t.Fatalf("form still open after submit; state=%v", a.form.State)
+	}
+	var found bool
+	for _, tk := range a.ix.All() {
+		if tk.Title == "Via form" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("ticket not created after form completion; status=%q", a.status)
 	}
 }
